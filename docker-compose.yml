@@ -1,0 +1,35 @@
+version: '3.9'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - APP_TIMEZONE=Asia/Manila
+      - SQL_HOST=postgres
+      - SQL_DB_NAME=pilaph_queue
+      - SQL_USER=postgres
+      - SQL_PASSWORD=postgres
+      - SQL_ADMIN_USER=postgres
+      - SQL_ADMIN_PASSWORD=postgres
+      - SMS_DRIVER=log
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=pilaph_queue
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
