@@ -5,7 +5,6 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import zlib from 'zlib';
 import { WebSocketServer } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -45,72 +44,6 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Minimal valid solid-slate PNG generator for PWA icons
-function generateSolidPng(width: number, height: number): Buffer {
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-
-  function crc32(buf: Buffer): number {
-    let crc = 0xffffffff;
-    for (let i = 0; i < buf.length; i++) {
-      crc ^= buf[i];
-      for (let j = 0; j < 8; j++) {
-        crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-      }
-    }
-    return (crc ^ 0xffffffff) >>> 0;
-  }
-
-  function makeChunk(type: string, data: Buffer): Buffer {
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length, 0);
-    const typeBuf = Buffer.from(type, 'ascii');
-    const crcBuf = Buffer.alloc(4);
-    crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-    return Buffer.concat([len, typeBuf, data, crcBuf]);
-  }
-
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // color type RGB
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  const rowSize = 1 + width * 3;
-  const raw = Buffer.alloc(rowSize * height);
-  for (let y = 0; y < height; y++) {
-    const rowStart = y * rowSize;
-    raw[rowStart] = 0; // filter type 0
-    for (let x = 0; x < width; x++) {
-      const px = rowStart + 1 + x * 3;
-      const border = Math.floor(width * 0.16);
-      const isInner =
-        x >= border &&
-        x < width - border &&
-        y >= border &&
-        y < height - border;
-      // Outer #0F172A (15, 23, 42), Inner accent #10B981 (16, 185, 129)
-      raw[px] = isInner ? 16 : 15;
-      raw[px + 1] = isInner ? 185 : 23;
-      raw[px + 2] = isInner ? 129 : 42;
-    }
-  }
-
-  const compressed = zlib.deflateSync(raw);
-  return Buffer.concat([
-    signature,
-    makeChunk('IHDR', ihdr),
-    makeChunk('IDAT', compressed),
-    makeChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
-const icon180 = generateSolidPng(180, 180);
-const icon192 = generateSolidPng(192, 192);
-const icon512 = generateSolidPng(512, 512);
 
 // Per-IP rate limiter for ticket creation
 const ipJoinBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -152,28 +85,6 @@ async function startServer() {
   // Health route (`/up`)
   app.get('/up', (_req, res) => {
     res.json({ status: 'ok', timezone: 'Asia/Manila' });
-  });
-
-  // Serve generated PNG icons for PWA compliance
-  app.get('/apple-touch-icon.png', (_req, res) => {
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(icon180);
-  });
-  app.get('/pwa-192x192.png', (_req, res) => {
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(icon192);
-  });
-  app.get('/pwa-512x512.png', (_req, res) => {
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(icon512);
-  });
-  app.get('/pwa-maskable-512x512.png', (_req, res) => {
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(icon512);
   });
 
   // ============================================================================
