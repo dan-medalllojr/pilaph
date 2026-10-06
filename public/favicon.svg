@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0F172A"/>
+  <g transform="translate(0 0) scale(1)">
+  <defs>
+    <mask id="pilaph-cutouts">
+      <rect width="512" height="512" fill="#fff"/>
+      <path d="M168 168V344" stroke="#000" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 25.14"/>
+      
+      <circle cx="290" cy="256" r="26" fill="#000"/>
+      <circle cx="358" cy="256" r="26" fill="#000"/>
+    </mask>
+  </defs>
+  <path d="M104 136H408A40 40 0 0 1 448 176V220A36 36 0 0 0 448 292V336A40 40 0 0 1 408 376H104A40 40 0 0 1 64 336V292A36 36 0 0 0 64 220V176A40 40 0 0 1 104 136Z" fill="#10B981" mask="url(#pilaph-cutouts)"/>
+  <circle cx="222" cy="256" r="26" fill="#F8FAFC"/>
+  </g>
+</svg>

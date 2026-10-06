@@ -14,7 +14,8 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title || 'PilaPH', {
       body: data.body || '',
       icon: '/pwa-192x192.png',
-      badge: '/pwa-192x192.png',
+      // White-on-transparent; Android shows it in the status bar.
+      badge: '/badge-96x96.png',
       tag: data.tag,
       renotify: Boolean(data.tag),
       data: { url: data.url || '/dashboard' },
