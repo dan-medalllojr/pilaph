@@ -226,7 +226,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 ### 3. Position and estimated wait
 - Position = count of `waiting` tickets for the same business and day with an earlier `joined_at`, plus one.
 - Average service time = mean of `(completed_at - called_at)` for the last 10 `done` tickets of that service; fall back to `default_minutes`.
-- ETA = position × average service time ÷ number of active counters (rounded up, shown as a range like "10–15 min").
+- Wait = the average service times of the people ahead (each for their own service, read from the ticket letter) ÷ number of active counters (rounded up, shown as a range like "10–15 min"). Your own service time isn't counted: the wait is until you're called, so next in line sees "Under 5 min", and everyone joining now sees the same wait whatever service they pick. (Changed in phase 4 from "position × average service time", which counted the customer's own service and assumed everyone ahead had the same service.)
 
 ### 4. End of day
 - A scheduled command runs nightly in `Asia/Manila`: mark leftover `waiting` tickets as `cancelled` and leftover `called` tickets as `no_show`.

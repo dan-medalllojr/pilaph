@@ -2,9 +2,13 @@
 
 namespace App\Providers;
 
+use App\Support\PhilippinePhone;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -24,6 +28,26 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureRateLimits();
+    }
+
+    /**
+     * Spam protection for joining the queue (Plan.md, "Traffic and capacity
+     * protection"). The per-IP limit is generous because a shop's customers
+     * often share its Wi-Fi.
+     */
+    protected function configureRateLimits(): void
+    {
+        RateLimiter::for('join', function (Request $request): array {
+            $limits = [Limit::perMinute(20)->by('join-ip:'.$request->ip())];
+
+            $phone = PhilippinePhone::normalize($request->string('phone')->value());
+            if ($phone !== null) {
+                $limits[] = Limit::perHour(6)->by('join-phone:'.$phone);
+            }
+
+            return $limits;
+        });
     }
 
     /**

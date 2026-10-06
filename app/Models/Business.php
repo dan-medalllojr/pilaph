@@ -73,6 +73,31 @@ class Business extends Model
     }
 
     /**
+     * Joins close at the cutoff time each day (business timezone).
+     */
+    public function isPastJoinCutoff(): bool
+    {
+        // Postgres returns time columns as "HH:MM:SS", so a string compare works.
+        return $this->join_cutoff_time !== null
+            && $this->localNow()->format('H:i:s') >= $this->join_cutoff_time;
+    }
+
+    /**
+     * Why new customers can't join right now, or null if they can.
+     *
+     * @return 'paused'|'after_cutoff'|'full'|null
+     */
+    public function joinClosedReason(int $waitingCount): ?string
+    {
+        return match (true) {
+            ! $this->is_open => 'paused',
+            $this->isPastJoinCutoff() => 'after_cutoff',
+            $this->max_waiting !== null && $waitingCount >= $this->max_waiting => 'full',
+            default => null,
+        };
+    }
+
+    /**
      * @return HasMany<User, $this>
      */
     public function users(): HasMany

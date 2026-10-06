@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
+import PublicLayout from '@/layouts/public-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
 const appName = import.meta.env.VITE_APP_NAME || 'PilaPH';
@@ -17,6 +18,9 @@ void createInertiaApp({
             // The one-time shop setup uses the simple centered card layout.
             case name.startsWith('auth/') || name === 'business/setup':
                 return AuthLayout;
+            // Customer pages: phone-first, no sidebar.
+            case name.startsWith('public/'):
+                return PublicLayout;
             case name.startsWith('settings/'):
                 return [AppLayout, SettingsLayout];
             default:

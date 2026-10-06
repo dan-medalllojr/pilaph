@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Customer\JoinController;
+use App\Http\Controllers\Customer\QueueStateController;
+use App\Http\Controllers\Customer\TicketController;
 use App\Http\Controllers\Owner\BusinessSettingsController;
 use App\Http\Controllers\Owner\BusinessSetupController;
 use App\Http\Controllers\Owner\CounterController;
@@ -9,6 +12,21 @@ use App\Http\Middleware\EnsureUserHasBusiness;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Customer pages (no login). The ticket's UUID link is the customer's identity.
+Route::get('q/{business:slug}', [JoinController::class, 'show'])->name('queue.join');
+Route::post('q/{business:slug}/tickets', [JoinController::class, 'store'])
+    ->middleware('throttle:join')
+    ->name('queue.tickets.store');
+Route::get('q/{business:slug}/state', QueueStateController::class)->name('queue.state');
+
+Route::whereUuid('ticket')->group(function () {
+    Route::get('t/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+    Route::get('t/{ticket}/state', [TicketController::class, 'state'])->name('tickets.state');
+    Route::post('t/{ticket}/cancel', [TicketController::class, 'cancel'])
+        ->middleware('throttle:20,1')
+        ->name('tickets.cancel');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // First run after sign-up: name the shop.
