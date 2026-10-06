@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Bell,
   Check,
   CheckCircle2,
   Copy,
@@ -122,10 +121,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
     new Set()
   );
   const [bulkRemoving, setBulkRemoving] = useState(false);
-
-  // Push notification state
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [subscribingPush, setSubscribingPush] = useState(false);
 
   // Setup forms state
   const [bizName, setBizName] = useState('');
@@ -347,36 +342,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
       }
     } finally {
       setBulkRemoving(false);
-    }
-  };
-
-  const handleEnablePushAlerts = async () => {
-    if (subscribingPush) return;
-    setSubscribingPush(true);
-    try {
-      if ('Notification' in window && Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      const res = await fetch('/api/push-subscriptions', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          endpoint: `webpush://${user?.uid || 'owner'}-${window.location.host}`,
-          keys: {
-            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-            auth: 'tBHItJI5svbpez7KI4CCXg',
-          },
-        }),
-      });
-      if (res.ok) {
-        setPushSubscribed(true);
-        showFeedback(
-          'success',
-          'Owner Web Push subscription saved for new customer alerts.'
-        );
-      }
-    } finally {
-      setSubscribingPush(false);
     }
   };
 
@@ -876,28 +841,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
          ======================================================================== */}
       {activeSubTab === 'today' && (
         <div className="space-y-6">
-          {/* Install App / Web Push Alert Bar */}
-          {!pushSubscribed && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-xs text-slate-700">
-                <Bell className="w-4 h-4 text-slate-900 shrink-0" />
-                <span>
-                  <strong>Install the app to get alerts:</strong> Enable Web
-                  Push notifications when new customers join (on iPhone, works
-                  after Add to Home Screen).
-                </span>
-              </div>
-              <button
-                type="button"
-                disabled={subscribingPush}
-                onClick={handleEnablePushAlerts}
-                className="px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 whitespace-nowrap min-h-[38px]"
-              >
-                {subscribingPush ? 'Enabling...' : 'Enable Owner Push Alerts'}
-              </button>
-            </div>
-          )}
-
           {/* Top Summary Metrics + Open/Pause Queue Toggle */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">

@@ -14,7 +14,6 @@ import { db } from './src/db/index.ts';
 import {
   businesses,
   counters,
-  pushSubscriptions,
   services,
   tickets,
 } from './src/db/schema.ts';
@@ -1304,45 +1303,6 @@ async function startServer() {
       } catch (error: unknown) {
         console.error('Error in end-of-day-cleanup:', error);
         res.status(500).json({ error: 'Failed to run end-of-day cleanup.' });
-      }
-    }
-  );
-
-  // POST /api/push-subscriptions
-  app.post(
-    '/api/push-subscriptions',
-    requireAuth,
-    async (req: AuthRequest, res) => {
-      try {
-        const businessId = await resolveOwnerBusinessId(req);
-        const endpoint = String(
-          req.body.endpoint || `webpush://${req.user!.uid}-${Date.now()}`
-        );
-        const p256dh = String(req.body.keys?.p256dh || 'demo-p256dh-key');
-        const authKey = String(req.body.keys?.auth || 'demo-auth-secret');
-
-        await db
-          .insert(pushSubscriptions)
-          .values({
-            businessId,
-            userUid: req.user!.uid,
-            endpoint,
-            p256dh,
-            auth: authKey,
-            userAgent: req.get('user-agent') || 'Browser PWA',
-          })
-          .onConflictDoUpdate({
-            target: pushSubscriptions.endpoint,
-            set: {
-              p256dh,
-              auth: authKey,
-            },
-          });
-
-        res.status(201).json({ ok: true });
-      } catch (error: unknown) {
-        console.error('Error saving push subscription:', error);
-        res.status(500).json({ error: 'Failed to save push subscription.' });
       }
     }
   );
