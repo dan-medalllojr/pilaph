@@ -190,15 +190,9 @@ export const CustomerTicketView: React.FC<CustomerTicketViewProps> = ({
             Ticket Not Found
           </h2>
           <p className="text-xs text-slate-600">
-            This ticket link may have expired or does not exist.
+            This ticket link may have expired or does not exist. Scan the QR
+            code at the shop to join the queue.
           </p>
-          <button
-            type="button"
-            onClick={() => onBackToJoin('juans-barbershop')}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold"
-          >
-            Back to Shop Queue
-          </button>
         </div>
       </div>
     );

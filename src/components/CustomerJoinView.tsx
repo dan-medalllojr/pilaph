@@ -5,7 +5,6 @@ import {
   Clock,
   QrCode,
   ShieldAlert,
-  Sparkles,
   Ticket,
   Users,
 } from 'lucide-react';
@@ -16,9 +15,7 @@ import heroShopImage from '../assets/images/barbershop_shopfront_hero_1791188500
 interface CustomerJoinViewProps {
   slug: string;
   qrToken: string;
-  validDemoQrToken?: string;
   onNavigateToTicket: (ticketId: string) => void;
-  onSimulateValidQrScan: () => void;
 }
 
 function getOrCreateDeviceId(): string {
@@ -51,7 +48,6 @@ export const CustomerJoinView: React.FC<CustomerJoinViewProps> = ({
   slug,
   qrToken,
   onNavigateToTicket,
-  onSimulateValidQrScan,
 }) => {
   const [queueState, setQueueState] = useState<
     (PublicQueueState & { qrTokenValid?: boolean }) | null
@@ -367,14 +363,6 @@ export const CustomerJoinView: React.FC<CustomerJoinViewProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onSimulateValidQrScan}
-            className="w-full min-h-[44px] rounded-xl bg-amber-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-amber-950 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Simulate Shop QR Scan (Demo Mode)</span>
-          </button>
         </div>
       )}
 
@@ -428,6 +416,12 @@ export const CustomerJoinView: React.FC<CustomerJoinViewProps> = ({
           </p>
 
           <div className="mt-3 space-y-2.5">
+            {activeServices.length === 0 && (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                {business.name} hasn&apos;t added any services yet, so the
+                queue can&apos;t take new tickets.
+              </p>
+            )}
             {activeServices.map((svc) => {
               const isSelected = svc.id === selectedServiceId;
               return (

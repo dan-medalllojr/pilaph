@@ -9,7 +9,6 @@ import {
 
 interface TvDisplayViewProps {
   slug: string;
-  fallbackQrToken?: string;
 }
 
 function playAirportChimeAndSpeak(
@@ -68,7 +67,6 @@ function playAirportChimeAndSpeak(
 
 export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
   slug,
-  fallbackQrToken,
 }) => {
   const [state, setState] = useState<PublicQueueState | null>(null);
   const [highlightedCode, setHighlightedCode] = useState<string | null>(null);
@@ -140,7 +138,7 @@ export const TvDisplayView: React.FC<TvDisplayViewProps> = ({
   }
 
   const nextFiveCodes = state.waitingCodes.slice(0, 5);
-  const qrTokenToRender = state.business.qrToken || fallbackQrToken || '';
+  const qrTokenToRender = state.business.qrToken || '';
   const joinUrl = `${window.location.origin}/?view=join&slug=${encodeURIComponent(
     state.business.slug
   )}&k=${encodeURIComponent(qrTokenToRender)}`;

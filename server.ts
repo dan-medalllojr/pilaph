@@ -30,7 +30,7 @@ import {
 } from './src/actions/QueueCalculations.ts';
 import { CreateTicket } from './src/actions/CreateTicket.ts';
 import { CallNextTicket } from './src/actions/CallNextTicket.ts';
-import { SeedDemoQueue } from './src/actions/SeedDemoQueue.ts';
+import { EndOfDayCleanup } from './src/actions/EndOfDayCleanup.ts';
 import { SemaphoreSmsService } from './src/actions/SemaphoreSmsService.ts';
 import { normalizePhilippinePhone } from './src/actions/PhoneNormalizer.ts';
 
@@ -119,14 +119,6 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-let seededOnce = false;
-async function ensureSeeded() {
-  if (!seededOnce) {
-    seededOnce = true;
-    await SeedDemoQueue.ensureTodayDemoData(false);
-  }
-}
-
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
@@ -179,52 +171,9 @@ async function startServer() {
   // PUBLIC ROUTES (No login, zero personal data in state payloads)
   // ============================================================================
 
-  // Demo helper endpoint so visitors can launch any screen with valid QR token & live ticket UUID
-  app.get('/api/demo/overview', async (_req, res) => {
-    try {
-      await ensureSeeded();
-      const bizRows = await db
-        .select()
-        .from(businesses)
-        .where(eq(businesses.slug, 'juans-barbershop'));
-      if (bizRows.length === 0) {
-        return res.status(404).json({ error: 'Demo business not found' });
-      }
-      const biz = bizRows[0];
-      const publicState = await getPublicQueueStateBySlug(biz.slug);
-      const activeTickets = await db
-        .select()
-        .from(tickets)
-        .where(
-          and(
-            eq(tickets.businessId, biz.id),
-            inArray(tickets.status, ['waiting', 'called'])
-          )
-        );
-      const sampleWaiting =
-        activeTickets.find((t) => t.status === 'waiting') || activeTickets[0];
-      const sampleCalled = activeTickets.find((t) => t.status === 'called');
-
-      res.json({
-        slug: biz.slug,
-        name: biz.name,
-        qrToken: biz.qrToken,
-        sampleWaitingTicketId: sampleWaiting ? sampleWaiting.id : null,
-        sampleWaitingTicketCode: sampleWaiting ? sampleWaiting.code : null,
-        sampleCalledTicketId: sampleCalled ? sampleCalled.id : null,
-        sampleCalledTicketCode: sampleCalled ? sampleCalled.code : null,
-        publicState,
-      });
-    } catch (error: unknown) {
-      console.error('Error in /api/demo/overview:', error);
-      res.status(500).json({ error: 'Failed to load demo overview' });
-    }
-  });
-
   // Public queue state snapshot (`/api/q/:slug/state`)
   app.get('/api/q/:slug/state', async (req, res) => {
     try {
-      await ensureSeeded();
       const { slug } = req.params;
       const providedToken =
         typeof req.query.k === 'string' ? req.query.k.trim() : '';
@@ -297,7 +246,6 @@ async function startServer() {
   // Public single ticket state (`GET /api/t/:ticketId/state`)
   app.get('/api/t/:ticketId/state', async (req, res) => {
     try {
-      await ensureSeeded();
       const state = await getPublicTicketState(req.params.ticketId);
       if (!state) {
         return res.status(404).json({ error: 'Ticket not found.' });
@@ -389,7 +337,6 @@ async function startServer() {
   // ============================================================================
 
   async function resolveOwnerBusinessId(req: AuthRequest): Promise<number> {
-    await ensureSeeded();
     const uid = req.user!.uid;
     const email = req.user!.email || 'owner@barbershop.ph';
     const name = req.user!.name || email.split('@')[0];
@@ -970,6 +917,60 @@ async function startServer() {
     }
   );
 
+  // DELETE /api/dashboard/services/:id (only services no ticket has used)
+  app.delete(
+    '/api/dashboard/services/:id',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const serviceId = Number(req.params.id);
+
+        const existing = await db
+          .select()
+          .from(services)
+          .where(
+            and(
+              eq(services.id, serviceId),
+              eq(services.businessId, businessId)
+            )
+          );
+        if (existing.length === 0) {
+          return res.status(404).json({ error: 'Service not found.' });
+        }
+
+        // Tickets keep their service for history and stats.
+        const used = await db
+          .select({ id: tickets.id })
+          .from(tickets)
+          .where(eq(tickets.serviceId, serviceId))
+          .limit(1);
+        if (used.length > 0) {
+          return res.status(409).json({
+            error:
+              'This service already has tickets, so it cannot be deleted. Set it to Inactive instead.',
+          });
+        }
+
+        await db
+          .delete(services)
+          .where(
+            and(
+              eq(services.id, serviceId),
+              eq(services.businessId, businessId)
+            )
+          );
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error deleting service:', error);
+        res.status(500).json({ error: 'Failed to delete service.' });
+      }
+    }
+  );
+
   // Counters CRUD
   app.post(
     '/api/dashboard/counters',
@@ -1045,6 +1046,60 @@ async function startServer() {
       } catch (error: unknown) {
         console.error('Error updating counter:', error);
         res.status(500).json({ error: 'Failed to update counter.' });
+      }
+    }
+  );
+
+  // DELETE /api/dashboard/counters/:id (only chairs no ticket has used)
+  app.delete(
+    '/api/dashboard/counters/:id',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const counterId = Number(req.params.id);
+
+        const existing = await db
+          .select()
+          .from(counters)
+          .where(
+            and(
+              eq(counters.id, counterId),
+              eq(counters.businessId, businessId)
+            )
+          );
+        if (existing.length === 0) {
+          return res.status(404).json({ error: 'Counter not found.' });
+        }
+
+        // Tickets keep the chair that served them for history and stats.
+        const used = await db
+          .select({ id: tickets.id })
+          .from(tickets)
+          .where(eq(tickets.counterId, counterId))
+          .limit(1);
+        if (used.length > 0) {
+          return res.status(409).json({
+            error:
+              'This chair has already served tickets, so it cannot be deleted. Set it to Offline instead.',
+          });
+        }
+
+        await db
+          .delete(counters)
+          .where(
+            and(
+              eq(counters.id, counterId),
+              eq(counters.businessId, businessId)
+            )
+          );
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error deleting counter:', error);
+        res.status(500).json({ error: 'Failed to delete counter.' });
       }
     }
   );
@@ -1150,36 +1205,24 @@ async function startServer() {
     }
   );
 
-  // POST /api/dashboard/demo-reset (Reseed demo queue or run End-of-Day cleanup)
+  // POST /api/dashboard/end-of-day-cleanup (run the nightly cleanup now for the owner's shop)
   app.post(
-    '/api/dashboard/demo-reset',
+    '/api/dashboard/end-of-day-cleanup',
     requireAuth,
     async (req: AuthRequest, res) => {
       try {
         const businessId = await resolveOwnerBusinessId(req);
-        const mode = req.body.mode || 'reseed';
-        if (mode === 'end_of_day') {
-          const cleanupResult =
-            await SeedDemoQueue.runEndOfDayCleanup(businessId);
-          const dashboard = await getOwnerDashboardState(businessId);
-          return res.json({
-            ok: true,
-            message: `End-of-day cleanup completed (${cleanupResult?.cancelledWaitingCount || 0} waiting cancelled, ${cleanupResult?.markedNoShowCount || 0} called marked no-show).`,
-            dashboard,
-          });
-        }
-
-        await SeedDemoQueue.ensureTodayDemoData(true);
+        const cleanupResult =
+          await EndOfDayCleanup.execute(businessId);
         const dashboard = await getOwnerDashboardState(businessId);
         res.json({
           ok: true,
-          message:
-            'Demo queue reset with fresh Filipino barbershop sample tickets.',
+          message: `End-of-day cleanup completed (${cleanupResult?.cancelledWaitingCount || 0} waiting cancelled, ${cleanupResult?.markedNoShowCount || 0} called marked no-show).`,
           dashboard,
         });
       } catch (error: unknown) {
-        console.error('Error in demo-reset:', error);
-        res.status(500).json({ error: 'Failed to reset demo queue.' });
+        console.error('Error in end-of-day-cleanup:', error);
+        res.status(500).json({ error: 'Failed to run end-of-day cleanup.' });
       }
     }
   );

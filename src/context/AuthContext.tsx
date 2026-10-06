@@ -16,6 +16,7 @@ interface AuthContextValue {
     uid: string;
     email: string;
     displayName: string;
+    avatarUrl: string | null;
   } | null;
   token: string | null;
   // True until the saved session (if any) has been restored on page load.
@@ -137,6 +138,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       email,
       displayName:
         metadata.full_name || metadata.name || email.split('@')[0] || 'Owner',
+      // Set by Google sign-in; email/password accounts have none.
+      avatarUrl: metadata.avatar_url || metadata.picture || null,
     };
   }, [session]);
 
