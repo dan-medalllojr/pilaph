@@ -1,26 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { NowServingEntry } from '../types/queue.ts';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
-  | string
-  | undefined;
-
-let supabaseClient: SupabaseClient | null = null;
-if (supabaseUrl && supabaseAnonKey) {
-  try {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      realtime: {
-        params: {
-          eventsPerSecond: 10,
-        },
-      },
-    });
-  } catch {
-    supabaseClient = null;
-  }
-}
+import { supabase as supabaseClient } from '../lib/supabase.ts';
 
 export interface RealtimeQueueEvent {
   type: 'broadcast';

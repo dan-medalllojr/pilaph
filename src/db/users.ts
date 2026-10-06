@@ -1,6 +1,6 @@
 import { db } from './index.ts';
 import { businesses, counters, services, users } from './schema.ts';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 export function getManilaDateString(date: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -26,17 +26,21 @@ export async function getOrCreateUserWithBusiness(
       return existingUsers[0];
     }
 
-    // Check if our default demo business exists
-    let targetBusinessId: number;
-    const defaultBiz = await db
-      .select()
-      .from(businesses)
-      .where(eq(businesses.slug, 'juans-barbershop'));
+    // Every new owner gets their own shop. The seeded demo shop
+    // (juans-barbershop) stays linked to the demo owner from SeedDemoQueue.
+    return await db.transaction(async (tx) => {
+      // The dashboard fires several requests at once on first sign-in; lock
+      // per user so only one of them creates the shop.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${uid}))`);
 
-    if (defaultBiz.length > 0 && (uid === 'demo-owner-juan-barbershop' || existingUsers.length === 0)) {
-      // If logging in as demo owner or first owner on the instance, link to Juan's Barbershop if unclaimed or demo
-      targetBusinessId = defaultBiz[0].id;
-    } else {
+      const lockedUsers = await tx
+        .select()
+        .from(users)
+        .where(eq(users.uid, uid));
+      if (lockedUsers.length > 0 && lockedUsers[0].businessId) {
+        return lockedUsers[0];
+      }
+
       const slugBase = (email.split('@')[0] || 'shop')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
@@ -44,7 +48,7 @@ export async function getOrCreateUserWithBusiness(
       const uniqueSlug = `${slugBase}-${Math.floor(1000 + Math.random() * 9000)}`;
       const todayStr = getManilaDateString();
 
-      const insertedBiz = await db
+      const insertedBiz = await tx
         .insert(businesses)
         .values({
           name: displayName ? `${displayName}'s Shop` : 'Manila Queue Hub',
@@ -60,9 +64,9 @@ export async function getOrCreateUserWithBusiness(
         })
         .returning();
 
-      targetBusinessId = insertedBiz[0].id;
+      const targetBusinessId = insertedBiz[0].id;
 
-      await db.insert(services).values([
+      await tx.insert(services).values([
         {
           businessId: targetBusinessId,
           name: 'Classic Haircut & Styling',
@@ -79,7 +83,7 @@ export async function getOrCreateUserWithBusiness(
         },
       ]);
 
-      await db.insert(counters).values([
+      await tx.insert(counters).values([
         {
           businessId: targetBusinessId,
           name: 'Chair 1',
@@ -91,27 +95,27 @@ export async function getOrCreateUserWithBusiness(
           isActive: true,
         },
       ]);
-    }
 
-    const result = await db
-      .insert(users)
-      .values({
-        uid,
-        email,
-        name: displayName || email.split('@')[0] || 'Owner',
-        businessId: targetBusinessId,
-        role: 'owner',
-      })
-      .onConflictDoUpdate({
-        target: users.uid,
-        set: {
+      const result = await tx
+        .insert(users)
+        .values({
+          uid,
           email,
+          name: displayName || email.split('@')[0] || 'Owner',
           businessId: targetBusinessId,
-        },
-      })
-      .returning();
+          role: 'owner',
+        })
+        .onConflictDoUpdate({
+          target: users.uid,
+          set: {
+            email,
+            businessId: targetBusinessId,
+          },
+        })
+        .returning();
 
-    return result[0];
+      return result[0];
+    });
   } catch (error) {
     console.error('Database query failed in getOrCreateUserWithBusiness:', error);
     throw new Error('Failed to synchronize user account with database.', {
