@@ -243,8 +243,8 @@ export const SmsSimulatorCard: React.FC<SmsSimulatorCardProps> = ({
             </label>
             {tickets.length === 0 ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs text-slate-500">
-                No tickets in today&apos;s queue yet. Create or reseed a ticket
-                to test SMS notifications.
+                No tickets in today&apos;s queue yet. Create a ticket to test SMS
+                notifications.
               </div>
             ) : (
               <select

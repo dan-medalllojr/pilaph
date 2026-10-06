@@ -28,7 +28,14 @@ import { useQueueChannel } from '../hooks/useQueueChannel.ts';
 import { PWAInstallButton } from '../hooks/usePWAInstall.tsx';
 import { formatPhoneForDisplay } from '../actions/PhoneNormalizer.ts';
 import { SmsSimulatorCard } from './SmsSimulatorCard.tsx';
-import ownerAvatarImg from '../assets/images/owner_avatar_juan_1791188515661.jpg';
+
+// "Maria Santos" -> "MS", "maria" -> "MA"
+function getInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const initials =
+    words.length >= 2 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2);
+  return initials.toUpperCase();
+}
 
 export type DashboardSubTab = 'today' | 'sms' | 'setup' | 'stats' | 'qr';
 
@@ -451,11 +458,29 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
     if (data.dashboard) setDashboard(data.dashboard);
   };
 
-  const handleDemoMaintenance = async (mode: 'reseed' | 'end_of_day') => {
-    const res = await fetch('/api/dashboard/demo-reset', {
+  const handleDelete = async (
+    kind: 'services' | 'counters',
+    id: number,
+    name: string
+  ) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    const res = await fetch(`/api/dashboard/${kind}/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (res.ok && data.dashboard) {
+      setDashboard(data.dashboard);
+      showFeedback('success', `Deleted ${name}.`);
+    } else {
+      showFeedback('error', data.error || `Could not delete ${name}.`);
+    }
+  };
+
+  const handleEndOfDayCleanup = async () => {
+    const res = await fetch('/api/dashboard/end-of-day-cleanup', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ mode }),
     });
     const data = await res.json();
     if (data.dashboard) {
@@ -654,9 +679,9 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
       {/* Owner Workspace Header & Sub-Navigation */}
       <div className="no-print rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          {!avatarError ? (
+          {user.avatarUrl && !avatarError ? (
             <img
-              src={ownerAvatarImg}
+              src={user.avatarUrl}
               alt={user.displayName}
               referrerPolicy="no-referrer"
               onError={() => setAvatarError(true)}
@@ -664,7 +689,7 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
             />
           ) : (
             <div className="w-11 h-11 rounded-xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center shrink-0">
-              JD
+              {getInitials(user.displayName)}
             </div>
           )}
           <div className="min-w-0">
@@ -864,6 +889,27 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
                 the oldest waiting customer
               </span>
             </div>
+
+            {/* New shops start empty: customers can't join without a service, and nobody can be called without a chair */}
+            {(counters.filter((c) => c.isActive).length === 0 ||
+              services.filter((s) => s.isActive).length === 0) && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 space-y-3">
+                <h3 className="text-sm font-semibold text-amber-950">
+                  Finish setting up your shop
+                </h3>
+                <p className="text-xs text-amber-900">
+                  Add at least one service and one chair before customers can
+                  join the queue and you can call them.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onChangeSubTab('setup')}
+                  className="min-h-[40px] px-4 py-2 rounded-xl bg-amber-900 text-white text-xs font-semibold hover:bg-amber-950"
+                >
+                  Open Services &amp; Chairs
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {counters
@@ -1087,13 +1133,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
                       className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold"
                     >
                       Add Walk-In Customer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDemoMaintenance('reseed')}
-                      className="min-h-[40px] px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50"
-                    >
-                      Reseed Sample Queue
                     </button>
                   </div>
                 </div>
@@ -1425,32 +1464,23 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
               </button>
             </form>
 
-            {/* Demo & Nightly Scheduler Actions */}
+            {/* Nightly Scheduler Action */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
               <h3 className="text-sm font-bold text-slate-900">
-                Queue Maintenance &amp; Demo Seeder
+                Queue Maintenance
               </h3>
               <p className="text-xs text-slate-500">
-                Test the nightly scheduled cleanup command (cancels leftover
-                waiting tickets, marks leftover called tickets as no-show, and
-                rotates daily QR tokens) or reset the sample queue.
+                Run the nightly cleanup now: cancels leftover waiting tickets,
+                marks leftover called tickets as no-show, and rotates the QR
+                token if daily rotation is on.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleDemoMaintenance('reseed')}
-                  className="min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 text-xs font-semibold hover:bg-slate-50"
-                >
-                  Reset Sample Demo Queue
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDemoMaintenance('end_of_day')}
-                  className="min-h-[42px] px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold hover:bg-amber-100"
-                >
-                  Run Nightly Cleanup Now
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleEndOfDayCleanup}
+                className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold hover:bg-amber-100"
+              >
+                Run Nightly Cleanup Now
+              </button>
             </div>
           </div>
 
@@ -1489,17 +1519,28 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleToggleService(svc.id, svc.isActive)}
-                      className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                        svc.isActive
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-200 bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {svc.isActive ? 'Active' : 'Inactive'}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleService(svc.id, svc.isActive)}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                          svc.isActive
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-200 bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {svc.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete('services', svc.id, svc.name)}
+                        title="Delete service"
+                        aria-label={`Delete ${svc.name}`}
+                        className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-300 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1576,17 +1617,28 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleToggleCounter(ctr.id, ctr.isActive)}
-                      className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                        ctr.isActive
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-200 bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {ctr.isActive ? 'Active' : 'Offline'}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCounter(ctr.id, ctr.isActive)}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                          ctr.isActive
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                            : 'border-slate-200 bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {ctr.isActive ? 'Active' : 'Offline'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete('counters', ctr.id, ctr.name)}
+                        title="Delete chair"
+                        aria-label={`Delete ${ctr.name}`}
+                        className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-300 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

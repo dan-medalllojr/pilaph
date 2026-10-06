@@ -1,5 +1,5 @@
 import { db } from './index.ts';
-import { businesses, counters, services, users } from './schema.ts';
+import { businesses, users } from './schema.ts';
 import { eq, sql } from 'drizzle-orm';
 
 export function getManilaDateString(date: Date = new Date()): string {
@@ -26,8 +26,8 @@ export async function getOrCreateUserWithBusiness(
       return existingUsers[0];
     }
 
-    // Every new owner gets their own shop. The seeded demo shop
-    // (juans-barbershop) stays linked to the demo owner from SeedDemoQueue.
+    // Every new owner gets their own shop. It starts empty: the owner adds
+    // services and chairs in Services & Chairs before customers can join.
     return await db.transaction(async (tx) => {
       // The dashboard fires several requests at once on first sign-in; lock
       // per user so only one of them creates the shop.
@@ -65,36 +65,6 @@ export async function getOrCreateUserWithBusiness(
         .returning();
 
       const targetBusinessId = insertedBiz[0].id;
-
-      await tx.insert(services).values([
-        {
-          businessId: targetBusinessId,
-          name: 'Classic Haircut & Styling',
-          prefix: 'A',
-          defaultMinutes: 20,
-          isActive: true,
-        },
-        {
-          businessId: targetBusinessId,
-          name: 'Beard Sculpt & Hot Towel',
-          prefix: 'B',
-          defaultMinutes: 15,
-          isActive: true,
-        },
-      ]);
-
-      await tx.insert(counters).values([
-        {
-          businessId: targetBusinessId,
-          name: 'Chair 1',
-          isActive: true,
-        },
-        {
-          businessId: targetBusinessId,
-          name: 'Chair 2',
-          isActive: true,
-        },
-      ]);
 
       const result = await tx
         .insert(users)

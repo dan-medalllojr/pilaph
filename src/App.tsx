@@ -24,7 +24,7 @@ function parseInitialRoute(): RouteState {
   const params = new URLSearchParams(window.location.search);
 
   const viewParam = params.get('view');
-  const slugParam = params.get('slug') || 'juans-barbershop';
+  const slugParam = params.get('slug') || '';
   const kParam = params.get('k') || '';
   const ticketParam = params.get('ticket') || '';
 
@@ -86,7 +86,7 @@ function parseInitialRoute(): RouteState {
     return {
       view: 'ticket',
       dashboardTab: 'today',
-      slug: 'juans-barbershop',
+      slug: '',
       qrToken: kParam,
       ticketId: decodeURIComponent(ticketMatch[1]),
     };
@@ -96,7 +96,7 @@ function parseInitialRoute(): RouteState {
     return {
       view: 'dashboard',
       dashboardTab: 'stats',
-      slug: 'juans-barbershop',
+      slug: '',
       qrToken: kParam,
       ticketId: '',
     };
@@ -106,7 +106,7 @@ function parseInitialRoute(): RouteState {
     return {
       view: 'dashboard',
       dashboardTab: 'qr',
-      slug: 'juans-barbershop',
+      slug: '',
       qrToken: kParam,
       ticketId: '',
     };
@@ -115,52 +115,28 @@ function parseInitialRoute(): RouteState {
   return {
     view: 'dashboard',
     dashboardTab: 'today',
-    slug: 'juans-barbershop',
+    slug: '',
     qrToken: kParam,
     ticketId: '',
   };
 }
 
+// Shown for join/TV links that are missing the shop slug.
+function ShopNotFound() {
+  return (
+    <div className="max-w-md mx-auto px-4 py-12">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">Shop not found</h2>
+        <p className="text-xs text-slate-600">
+          Scan the QR code at the shop to open its queue.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [route, setRoute] = useState<RouteState>(() => parseInitialRoute());
-  const [demoOverview, setDemoOverview] = useState<{
-    slug: string;
-    qrToken: string;
-    sampleWaitingTicketId: string | null;
-    sampleCalledTicketId: string | null;
-  }>({
-    slug: 'juans-barbershop',
-    qrToken: 'juan-makati-2026',
-    sampleWaitingTicketId: null,
-    sampleCalledTicketId: null,
-  });
-
-  useEffect(() => {
-    fetch('/api/demo/overview')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) {
-          setDemoOverview({
-            slug: data.slug || 'juans-barbershop',
-            qrToken: data.qrToken || 'juan-makati-2026',
-            sampleWaitingTicketId: data.sampleWaitingTicketId || null,
-            sampleCalledTicketId: data.sampleCalledTicketId || null,
-          });
-          setRoute((prev) => ({
-            ...prev,
-            qrToken: prev.qrToken || data.qrToken || 'juan-makati-2026',
-            ticketId:
-              prev.ticketId ||
-              data.sampleWaitingTicketId ||
-              data.sampleCalledTicketId ||
-              '',
-          }));
-        }
-      })
-      .catch(() => {
-        // Ignore
-      });
-  }, []);
 
   const navigateToDashboard = (tab: DashboardSubTab = 'today') => {
     const nextPath =
@@ -178,9 +154,9 @@ export default function App() {
   };
 
   const navigateToJoin = (slug: string, qrToken: string) => {
-    const nextUrl = `/q/${encodeURIComponent(slug)}?k=${encodeURIComponent(
-      qrToken
-    )}`;
+    const nextUrl = qrToken
+      ? `/q/${encodeURIComponent(slug)}?k=${encodeURIComponent(qrToken)}`
+      : `/q/${encodeURIComponent(slug)}`;
     window.history.pushState({}, '', nextUrl);
     setRoute((prev) => ({
       ...prev,
@@ -221,9 +197,9 @@ export default function App() {
   return (
     <AuthProvider>
       <div className="min-h-screen flex flex-col">
-        {/* Strict 3-Zone Top Bar Contract */}
+        {/* Top Bar: wordmark + owner navigation */}
         <header className="no-print sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6 h-14 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-          {/* Zone 1: Single text element wordmark */}
+          {/* Wordmark */}
           <a
             href="/dashboard"
             onClick={(e) => {
@@ -235,7 +211,7 @@ export default function App() {
             PilaPH
           </a>
 
-          {/* Zone 2: 4-5 clean text navigation links */}
+          {/* Owner navigation links */}
           <nav className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm font-medium text-slate-600 overflow-x-auto">
             <a
               href="/dashboard"
@@ -253,72 +229,12 @@ export default function App() {
             </a>
 
             <a
-              href={`/q/${demoOverview.slug}?k=${demoOverview.qrToken}`}
-              onClick={(e) => {
-                e.preventDefault();
-                navigateToJoin(demoOverview.slug, demoOverview.qrToken);
-              }}
-              className={`hover:text-slate-900 hover:underline underline-offset-4 transition-colors whitespace-nowrap ${
-                route.view === 'join'
-                  ? 'text-slate-900 font-semibold underline'
-                  : ''
-              }`}
-            >
-              Customer Join
-            </a>
-
-            <a
-              href={`/t/${
-                route.ticketId ||
-                demoOverview.sampleWaitingTicketId ||
-                'demo-ticket'
-              }`}
-              onClick={(e) => {
-                e.preventDefault();
-                const targetTicket =
-                  localStorage.getItem(
-                    `pilaph_active_ticket_${demoOverview.slug}`
-                  ) ||
-                  route.ticketId ||
-                  demoOverview.sampleWaitingTicketId ||
-                  demoOverview.sampleCalledTicketId;
-                if (targetTicket) {
-                  navigateToTicket(targetTicket);
-                } else {
-                  navigateToJoin(demoOverview.slug, demoOverview.qrToken);
-                }
-              }}
-              className={`hover:text-slate-900 hover:underline underline-offset-4 transition-colors whitespace-nowrap ${
-                route.view === 'ticket'
-                  ? 'text-slate-900 font-semibold underline'
-                  : ''
-              }`}
-            >
-              Live Ticket
-            </a>
-
-            <a
-              href={`/q/${demoOverview.slug}/display`}
-              onClick={(e) => {
-                e.preventDefault();
-                navigateToTv(demoOverview.slug);
-              }}
-              className={`hover:text-slate-900 hover:underline underline-offset-4 transition-colors whitespace-nowrap ${
-                route.view === 'tv'
-                  ? 'text-slate-900 font-semibold underline'
-                  : ''
-              }`}
-            >
-              TV Display
-            </a>
-
-            <a
               href="/dashboard/qr"
               onClick={(e) => {
                 e.preventDefault();
                 navigateToDashboard('qr');
               }}
-              className={`hidden md:inline hover:text-slate-900 hover:underline underline-offset-4 transition-colors whitespace-nowrap ${
+              className={`hover:text-slate-900 hover:underline underline-offset-4 transition-colors whitespace-nowrap ${
                 route.view === 'dashboard' && route.dashboardTab === 'qr'
                   ? 'text-slate-900 font-semibold underline'
                   : ''
@@ -327,19 +243,6 @@ export default function App() {
               QR Poster
             </a>
           </nav>
-
-          {/* Zone 3: 1 primary action */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                navigateToJoin(demoOverview.slug, demoOverview.qrToken)
-              }
-              className="px-3.5 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
-            >
-              Scan QR Demo
-            </button>
-          </div>
         </header>
 
         {/* Main Viewport Content */}
@@ -354,40 +257,28 @@ export default function App() {
             />
           )}
 
-          {route.view === 'join' && (
+          {(route.view === 'join' || route.view === 'tv') && !route.slug && (
+            <ShopNotFound />
+          )}
+
+          {route.view === 'join' && route.slug && (
             <CustomerJoinView
-              slug={route.slug || demoOverview.slug}
+              slug={route.slug}
               qrToken={route.qrToken}
-              validDemoQrToken={demoOverview.qrToken}
               onNavigateToTicket={(ticketId) => navigateToTicket(ticketId)}
-              onSimulateValidQrScan={() =>
-                navigateToJoin(
-                  route.slug || demoOverview.slug,
-                  demoOverview.qrToken
-                )
-              }
             />
           )}
 
           {route.view === 'ticket' && (
             <CustomerTicketView
-              ticketId={
-                route.ticketId ||
-                demoOverview.sampleWaitingTicketId ||
-                demoOverview.sampleCalledTicketId ||
-                ''
-              }
-              onBackToJoin={(slug) =>
-                navigateToJoin(slug, demoOverview.qrToken)
-              }
+              ticketId={route.ticketId}
+              // Rejoining requires scanning the shop QR again, so no token here.
+              onBackToJoin={(slug) => navigateToJoin(slug, '')}
             />
           )}
 
-          {route.view === 'tv' && (
-            <TvDisplayView
-              slug={route.slug || demoOverview.slug}
-              fallbackQrToken={demoOverview.qrToken}
-            />
+          {route.view === 'tv' && route.slug && (
+            <TvDisplayView slug={route.slug} />
           )}
         </main>
 
