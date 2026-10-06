@@ -1,24 +1,31 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  User,
-} from 'firebase/auth';
-import { auth, googleAuthProvider } from '../lib/firebase.ts';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase.ts';
+
+const NOT_CONFIGURED_ERROR =
+  'Sign-in is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env and restart the server.';
 
 interface AuthContextValue {
   user: {
     uid: string;
     email: string;
     displayName: string;
-    isDemo: boolean;
   } | null;
   token: string | null;
+  // True until the saved session (if any) has been restored on page load.
+  initializing: boolean;
   loading: boolean;
   error: string | null;
+  notice: string | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInAsDemoOwner: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -27,97 +34,124 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // Default to Demo Owner active in memory so the portfolio reviewer can immediately test owner controls,
-  // or sign out / sign in with real Google Firebase Auth at any time.
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>('DEMO_OWNER_TOKEN');
-  const [isDemo, setIsDemo] = useState<boolean>(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [initializing, setInitializing] = useState<boolean>(!!supabase);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        try {
-          const idToken = await fbUser.getIdToken();
-          setFirebaseUser(fbUser);
-          setToken(idToken);
-          setIsDemo(false);
-        } catch (err) {
-          console.error('Failed to get Firebase ID token:', err);
-        }
-      }
-      setLoading(false);
+    if (!supabase) return;
+    // Fires once with the restored session (INITIAL_SESSION), then on every
+    // sign-in, sign-out and token refresh.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setInitializing(false);
     });
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signIn = async (email: string, password: string) => {
     setError(null);
+    setNotice(null);
+    if (!supabase) {
+      setError(NOT_CONFIGURED_ERROR);
+      return;
+    }
     setLoading(true);
     try {
-      const cred = await signInWithPopup(auth, googleAuthProvider);
-      const idToken = await cred.user.getIdToken();
-      setFirebaseUser(cred.user);
-      setToken(idToken);
-      setIsDemo(false);
-    } catch (err: unknown) {
-      console.error('Google Sign-In error:', err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Google Sign-In failed. You can also use Demo Owner mode.'
-      );
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) setError(signInError.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const signInAsDemoOwner = () => {
+  const signUp = async (email: string, password: string) => {
     setError(null);
-    setFirebaseUser(null);
-    setToken('DEMO_OWNER_TOKEN');
-    setIsDemo(true);
+    setNotice(null);
+    if (!supabase) {
+      setError(NOT_CONFIGURED_ERROR);
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      });
+      if (signUpError) {
+        setError(signUpError.message);
+      } else if (!data.session) {
+        // Email confirmation is on: no session until the link is clicked.
+        setNotice(
+          `We sent a confirmation link to ${email}. Open it, then sign in here.`
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setError(null);
+    setNotice(null);
+    if (!supabase) {
+      setError(NOT_CONFIGURED_ERROR);
+      return;
+    }
+    setLoading(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/dashboard` },
+    });
+    // On success the browser leaves for Google; the session is picked up by
+    // onAuthStateChange when it returns to /dashboard.
+    if (oauthError) {
+      setError(oauthError.message);
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
     setError(null);
-    try {
-      if (firebaseUser) {
-        await firebaseSignOut(auth);
-      }
-    } finally {
-      setFirebaseUser(null);
-      setToken(null);
-      setIsDemo(false);
+    setNotice(null);
+    if (supabase) {
+      await supabase.auth.signOut();
     }
+    setSession(null);
   };
 
-  const user = firebaseUser
-    ? {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || 'owner@shop.ph',
-        displayName: firebaseUser.displayName || 'Shop Owner',
-        isDemo: false,
-      }
-    : isDemo && token === 'DEMO_OWNER_TOKEN'
-      ? {
-          uid: 'demo-owner-juan-barbershop',
-          email: 'juan@barbershop.ph',
-          displayName: 'Juan Dela Cruz',
-          isDemo: true,
-        }
-      : null;
+  const user = useMemo(() => {
+    if (!session) return null;
+    const email = session.user.email || '';
+    const metadata = session.user.user_metadata ?? {};
+    return {
+      uid: session.user.id,
+      email,
+      displayName:
+        metadata.full_name || metadata.name || email.split('@')[0] || 'Owner',
+    };
+  }, [session]);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
+        token: session?.access_token ?? null,
+        initializing,
         loading,
         error,
+        notice,
+        signIn,
+        signUp,
         signInWithGoogle,
-        signInAsDemoOwner,
         signOut,
       }}
     >

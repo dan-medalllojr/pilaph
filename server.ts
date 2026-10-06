@@ -1,10 +1,12 @@
+// Must stay the first import: modules below (e.g. src/db/index.ts) read
+// process.env at import time.
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { WebSocketServer } from 'ws';
-import * as dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { and, eq, inArray } from 'drizzle-orm';
 
@@ -31,8 +33,6 @@ import { CallNextTicket } from './src/actions/CallNextTicket.ts';
 import { SeedDemoQueue } from './src/actions/SeedDemoQueue.ts';
 import { SemaphoreSmsService } from './src/actions/SemaphoreSmsService.ts';
 import { normalizePhilippinePhone } from './src/actions/PhoneNormalizer.ts';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
