@@ -371,19 +371,21 @@ Use both Actions and Services, each for its own job. Avoid one large `TicketServ
 ```
 app/
 ├── Actions/                    one class, one public method: execute()
+│   ├── CreateBusiness.php      first-run shop setup (unique permanent slug)
 │   ├── CreateTicket.php        join flow (locks, numbering, idempotency)
+│   ├── CancelTicket.php        customer leaves the queue
 │   ├── CallNextTicket.php      counter lock + expected-ticket check
-│   ├── MarkTicketDone.php
-│   ├── MarkTicketNoShow.php
+│   ├── FinishTicket.php        done or no-show (only from called)
 │   ├── RecallTicket.php
-│   ├── CancelTicket.php
 │   ├── BulkRemoveTickets.php
 │   ├── ToggleQueue.php
 │   └── RunEndOfDayCleanup.php
-├── Services/                   wrappers for outside systems
+├── Services/                   outside systems and shared calculations
 │   ├── SupabaseBroadcaster.php POST to Supabase Realtime
 │   ├── SemaphoreClient.php     Semaphore HTTP API
-│   └── QueueEstimator.php      position + ETA calculation (pure, easy to unit-test)
+│   ├── QueueEstimator.php      wait-time calculation (easy to unit-test)
+│   ├── PublicQueueState.php    cached snapshot without personal data
+│   └── OwnerQueueState.php     dashboard view with names (never phones)
 ├── Notifications/
 │   ├── Channels/SemaphoreChannel.php   uses SemaphoreClient (or the log driver)
 │   ├── TicketNearTurn.php              "3 people ahead of you" SMS

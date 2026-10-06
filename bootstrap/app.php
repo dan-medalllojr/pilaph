@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\QueueConflict;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -7,6 +8,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -30,4 +32,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // A queue action that can't go ahead (e.g. a double-tapped "Call next"):
+        // tell the owner why and show the latest state.
+        $exceptions->render(function (QueueConflict $conflict, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $conflict->getMessage()], 409);
+            }
+
+            Inertia::flash('toast', ['type' => 'error', 'message' => $conflict->getMessage()]);
+
+            return back();
+        });
     })->create();
