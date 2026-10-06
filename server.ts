@@ -14,6 +14,7 @@ import { db } from './src/db/index.ts';
 import {
   businesses,
   counters,
+  pushSubscriptions,
   services,
   tickets,
 } from './src/db/schema.ts';
@@ -30,6 +31,8 @@ import {
 import { CreateTicket } from './src/actions/CreateTicket.ts';
 import { CallNextTicket } from './src/actions/CallNextTicket.ts';
 import { EndOfDayCleanup } from './src/actions/EndOfDayCleanup.ts';
+import { OwnerAlerts } from './src/actions/OwnerAlerts.ts';
+import { getVapidPublicKey, isPushConfigured } from './src/lib/owner-push.ts';
 import { SemaphoreSmsService } from './src/actions/SemaphoreSmsService.ts';
 import { normalizePhilippinePhone } from './src/actions/PhoneNormalizer.ts';
 import {
@@ -1285,6 +1288,96 @@ async function startServer() {
     }
   );
 
+  // GET /api/dashboard/push/public-key (VAPID public key the browser subscribes with)
+  app.get(
+    '/api/dashboard/push/public-key',
+    requireAuth,
+    (_req: AuthRequest, res) => {
+      const publicKey = getVapidPublicKey();
+      if (!publicKey) {
+        return res
+          .status(503)
+          .json({ error: 'Owner alerts are not set up on this server.' });
+      }
+      res.json({ publicKey });
+    }
+  );
+
+  // POST /api/dashboard/push-subscriptions (save this device's browser push subscription)
+  app.post(
+    '/api/dashboard/push-subscriptions',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const endpoint = String(req.body.endpoint || '');
+        const p256dh = String(req.body.keys?.p256dh || '');
+        const authKey = String(req.body.keys?.auth || '');
+        // Real push services only use HTTPS endpoints.
+        if (
+          !endpoint.startsWith('https://') ||
+          endpoint.length > 1000 ||
+          !p256dh ||
+          p256dh.length > 200 ||
+          !authKey ||
+          authKey.length > 100
+        ) {
+          return res.status(400).json({ error: 'Invalid push subscription.' });
+        }
+
+        const userAgent = (req.get('user-agent') || '').slice(0, 300) || null;
+        await db
+          .insert(pushSubscriptions)
+          .values({
+            businessId,
+            userUid: req.user!.uid,
+            endpoint,
+            p256dh,
+            auth: authKey,
+            userAgent,
+          })
+          .onConflictDoUpdate({
+            target: pushSubscriptions.endpoint,
+            set: {
+              businessId,
+              userUid: req.user!.uid,
+              p256dh,
+              auth: authKey,
+              userAgent,
+            },
+          });
+
+        res.status(201).json({ ok: true });
+      } catch (error: unknown) {
+        console.error('Error saving push subscription:', error);
+        res.status(500).json({ error: 'Failed to save push subscription.' });
+      }
+    }
+  );
+
+  // DELETE /api/dashboard/push-subscriptions (turn off alerts on this device)
+  app.delete(
+    '/api/dashboard/push-subscriptions',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const endpoint = String(req.body.endpoint || '');
+        await db
+          .delete(pushSubscriptions)
+          .where(
+            and(
+              eq(pushSubscriptions.endpoint, endpoint),
+              eq(pushSubscriptions.userUid, req.user!.uid)
+            )
+          );
+        res.json({ ok: true });
+      } catch (error: unknown) {
+        console.error('Error removing push subscription:', error);
+        res.status(500).json({ error: 'Failed to remove push subscription.' });
+      }
+    }
+  );
+
   // POST /api/dashboard/end-of-day-cleanup (run the nightly cleanup now for the owner's shop)
   app.post(
     '/api/dashboard/end-of-day-cleanup',
@@ -1328,6 +1421,14 @@ async function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`PilaPH server listening on http://0.0.0.0:${PORT}`);
   });
+
+  // Owner "join cutoff is near" alerts. Checked twice a minute; each shop
+  // gets at most one reminder per day.
+  if (isPushConfigured()) {
+    setInterval(() => {
+      void OwnerAlerts.remindUpcomingCutoffs();
+    }, 30 * 1000);
+  }
 }
 
 startServer();

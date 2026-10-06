@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Bell,
+  BellRing,
   Check,
   CheckCircle2,
   Copy,
@@ -26,6 +28,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { AnalyticsStats, DashboardState } from '../types/queue.ts';
 import { useQueueChannel } from '../hooks/useQueueChannel.ts';
+import { useOwnerPushAlerts } from '../hooks/useOwnerPushAlerts.ts';
 import { PWAInstallButton } from '../hooks/usePWAInstall.tsx';
 import { formatPhoneForDisplay } from '../actions/PhoneNormalizer.ts';
 import { SmsSimulatorCard } from './SmsSimulatorCard.tsx';
@@ -130,6 +133,15 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
   const [rotateQrDaily, setRotateQrDaily] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Owner push alerts on this device (customer joined, almost full, cutoff near)
+  const pushAlerts = useOwnerPushAlerts(token);
+
+  // Signing out also stops alerts on this device, e.g. a shared shop tablet.
+  const handleSignOut = async () => {
+    if (pushAlerts.status === 'on') await pushAlerts.disable();
+    await signOut();
+  };
 
   const [newSvcName, setNewSvcName] = useState('');
   const [newSvcPrefix, setNewSvcPrefix] = useState('');
@@ -804,7 +816,7 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
 
           <button
             type="button"
-            onClick={signOut}
+            onClick={handleSignOut}
             title="Sign Out"
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 min-h-[40px]"
           >
@@ -841,6 +853,73 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
          ======================================================================== */}
       {activeSubTab === 'today' && (
         <div className="space-y-6">
+          {/* Owner push alerts for this device */}
+          {pushAlerts.status !== 'checking' &&
+            pushAlerts.status !== 'unavailable' && (
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-3 text-xs text-slate-700 min-w-0">
+                  {pushAlerts.status === 'on' ? (
+                    <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  ) : (
+                    <Bell className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-1">
+                    {pushAlerts.status === 'on' && (
+                      <p>
+                        <strong>Alerts are on for this device.</strong> You&apos;ll
+                        be notified when a customer joins, when the queue is
+                        almost full, and 30 minutes before your join cutoff.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'off' && (
+                      <p>
+                        <strong>Get alerts on this device</strong> when a
+                        customer joins, when the queue is almost full, and 30
+                        minutes before your join cutoff.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'blocked' && (
+                      <p>
+                        <strong>Notifications are blocked for this site.</strong>{' '}
+                        Allow them in your browser&apos;s site settings to get
+                        alerts.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'unsupported' && (
+                      <p>
+                        <strong>This browser can&apos;t show alerts.</strong> On
+                        iPhone or iPad, add PilaPH to your Home Screen first
+                        (Share, then Add to Home Screen) and open it from there.
+                      </p>
+                    )}
+                    {pushAlerts.error && (
+                      <p className="text-red-700">{pushAlerts.error}</p>
+                    )}
+                  </div>
+                </div>
+                {pushAlerts.status === 'off' && (
+                  <button
+                    type="button"
+                    disabled={pushAlerts.busy}
+                    onClick={pushAlerts.enable}
+                    className="px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 whitespace-nowrap min-h-[38px] disabled:opacity-60"
+                  >
+                    {pushAlerts.busy ? 'Turning on...' : 'Turn On Alerts'}
+                  </button>
+                )}
+                {pushAlerts.status === 'on' && (
+                  <button
+                    type="button"
+                    disabled={pushAlerts.busy}
+                    onClick={pushAlerts.disable}
+                    className="px-3.5 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 whitespace-nowrap min-h-[38px] disabled:opacity-60"
+                  >
+                    {pushAlerts.busy ? 'Turning off...' : 'Turn Off'}
+                  </button>
+                )}
+              </div>
+            )}
+
           {/* Top Summary Metrics + Open/Pause Queue Toggle */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
