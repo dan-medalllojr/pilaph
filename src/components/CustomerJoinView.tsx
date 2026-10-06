@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { PublicQueueState, PublicTicketState } from '../types/queue.ts';
 import { useQueueChannel } from '../hooks/useQueueChannel.ts';
-import heroShopImage from '../assets/images/barbershop_shopfront_hero_1791188500276.jpg';
 
 interface CustomerJoinViewProps {
   slug: string;
@@ -68,7 +67,8 @@ export const CustomerJoinView: React.FC<CustomerJoinViewProps> = ({
   const [honeypot, setHoneypot] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [imgError, setImgError] = useState(false);
+  // Tracks the photo URL that failed to load, so a newly uploaded photo is retried.
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
 
   // Idempotency key generated once per form session
   const idempotencyKey = useMemo(() => generateUuidV4(), []);
@@ -218,12 +218,12 @@ export const CustomerJoinView: React.FC<CustomerJoinViewProps> = ({
       {/* Shop Header Card with Editorial Hero */}
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
         <div className="relative h-40 w-full bg-slate-900">
-          {!imgError ? (
+          {business.photoUrl && failedPhotoUrl !== business.photoUrl ? (
             <img
-              src={heroShopImage}
-              alt={`${business.name} interior`}
+              src={business.photoUrl}
+              alt={business.name}
               referrerPolicy="no-referrer"
-              onError={() => setImgError(true)}
+              onError={() => setFailedPhotoUrl(business.photoUrl)}
               className="w-full h-full object-cover opacity-85"
             />
           ) : (

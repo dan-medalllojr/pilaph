@@ -232,6 +232,7 @@ export async function getPublicQueueStateBySlug(
         // Include qrToken on public state only when rotateQrDaily is on so TV Display shows live daily QR
         qrToken: biz.rotateQrDaily ? biz.qrToken : undefined,
         timezone: biz.timezone,
+        photoUrl: biz.photoUrl,
         isPastCutoff,
         isFull,
         manilaTime,
@@ -524,6 +525,7 @@ export async function getOwnerDashboardState(
         rotateQrDaily: biz.rotateQrDaily,
         qrTokenDate: biz.qrTokenDate,
         timezone: biz.timezone,
+        photoUrl: biz.photoUrl,
       },
       services: serviceRows.map((s) => ({
         id: s.id,

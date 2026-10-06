@@ -16,8 +16,12 @@ CREATE TABLE IF NOT EXISTS "businesses" (
   "rotate_qr_daily" boolean DEFAULT false NOT NULL,
   "qr_token_date" text NOT NULL,
   "timezone" text DEFAULT 'Asia/Manila' NOT NULL,
+  "photo_url" text,
   "created_at" timestamp DEFAULT now() NOT NULL
 );
+
+-- Added after the first release; safe to re-run on existing databases.
+ALTER TABLE "businesses" ADD COLUMN IF NOT EXISTS "photo_url" text;
 
 CREATE TABLE IF NOT EXISTS "users" (
   "id" serial PRIMARY KEY NOT NULL,

@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Bell,
+  BellRing,
   Check,
   CheckCircle2,
   Copy,
   ExternalLink,
+  Image as ImageIcon,
+  ImagePlus,
   LogIn,
   LogOut,
   Megaphone,
@@ -25,6 +28,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { AnalyticsStats, DashboardState } from '../types/queue.ts';
 import { useQueueChannel } from '../hooks/useQueueChannel.ts';
+import { useOwnerPushAlerts } from '../hooks/useOwnerPushAlerts.ts';
 import { PWAInstallButton } from '../hooks/usePWAInstall.tsx';
 import { formatPhoneForDisplay } from '../actions/PhoneNormalizer.ts';
 import { SmsSimulatorCard } from './SmsSimulatorCard.tsx';
@@ -35,6 +39,30 @@ function getInitials(name: string): string {
   const initials =
     words.length >= 2 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2);
   return initials.toUpperCase();
+}
+
+// Shrinks phone photos before upload and re-encodes them as JPEG, which also
+// drops hidden metadata such as GPS location.
+async function resizeShopPhoto(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available.');
+  // JPEG has no transparency; paint white so transparent PNGs don't turn black.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode photo.'))),
+      'image/jpeg',
+      0.85
+    )
+  );
 }
 
 export type DashboardSubTab = 'today' | 'sms' | 'setup' | 'stats' | 'qr';
@@ -97,10 +125,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
   );
   const [bulkRemoving, setBulkRemoving] = useState(false);
 
-  // Push notification state
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [subscribingPush, setSubscribingPush] = useState(false);
-
   // Setup forms state
   const [bizName, setBizName] = useState('');
   const [nearThreshold, setNearThreshold] = useState(3);
@@ -108,6 +132,16 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
   const [joinCutoffTime, setJoinCutoffTime] = useState<string>('21:30');
   const [rotateQrDaily, setRotateQrDaily] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // Owner push alerts on this device (customer joined, almost full, cutoff near)
+  const pushAlerts = useOwnerPushAlerts(token);
+
+  // Signing out also stops alerts on this device, e.g. a shared shop tablet.
+  const handleSignOut = async () => {
+    if (pushAlerts.status === 'on') await pushAlerts.disable();
+    await signOut();
+  };
 
   const [newSvcName, setNewSvcName] = useState('');
   const [newSvcPrefix, setNewSvcPrefix] = useState('');
@@ -323,36 +357,6 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
     }
   };
 
-  const handleEnablePushAlerts = async () => {
-    if (subscribingPush) return;
-    setSubscribingPush(true);
-    try {
-      if ('Notification' in window && Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      const res = await fetch('/api/push-subscriptions', {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          endpoint: `webpush://${user?.uid || 'owner'}-${window.location.host}`,
-          keys: {
-            p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
-            auth: 'tBHItJI5svbpez7KI4CCXg',
-          },
-        }),
-      });
-      if (res.ok) {
-        setPushSubscribed(true);
-        showFeedback(
-          'success',
-          'Owner Web Push subscription saved for new customer alerts.'
-        );
-      }
-    } finally {
-      setSubscribingPush(false);
-    }
-  };
-
   const handleSaveBusinessSettings = async (
     e: React.FormEvent,
     regenerateQrToken = false
@@ -386,6 +390,71 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
       }
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // so picking the same file again still triggers a change
+    if (!file || photoBusy) return;
+    setPhotoBusy(true);
+    try {
+      let photo: Blob;
+      try {
+        photo = await resizeShopPhoto(file);
+      } catch {
+        showFeedback(
+          'error',
+          'That file could not be read as a photo. Use a JPG, PNG or WebP image.'
+        );
+        return;
+      }
+      const res = await fetch('/api/dashboard/business/photo', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'image/jpeg',
+        },
+        body: photo,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.dashboard) {
+        setDashboard(data.dashboard);
+        showFeedback('success', 'Shop photo updated.');
+      } else {
+        showFeedback(
+          'error',
+          res.status === 413
+            ? 'That photo is too large. Try a smaller one.'
+            : data.error || 'Could not upload the photo.'
+        );
+      }
+    } catch {
+      showFeedback('error', 'Network error while uploading the photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (photoBusy || !window.confirm('Remove the shop photo?')) return;
+    setPhotoBusy(true);
+    try {
+      const res = await fetch('/api/dashboard/business/photo', {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.dashboard) {
+        setDashboard(data.dashboard);
+        showFeedback('success', 'Shop photo removed.');
+      } else {
+        showFeedback('error', data.error || 'Could not remove the photo.');
+      }
+    } catch {
+      showFeedback('error', 'Network error while removing the photo.');
+    } finally {
+      setPhotoBusy(false);
     }
   };
 
@@ -747,7 +816,7 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
 
           <button
             type="button"
-            onClick={signOut}
+            onClick={handleSignOut}
             title="Sign Out"
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 min-h-[40px]"
           >
@@ -784,27 +853,72 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
          ======================================================================== */}
       {activeSubTab === 'today' && (
         <div className="space-y-6">
-          {/* Install App / Web Push Alert Bar */}
-          {!pushSubscribed && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 text-xs text-slate-700">
-                <Bell className="w-4 h-4 text-slate-900 shrink-0" />
-                <span>
-                  <strong>Install the app to get alerts:</strong> Enable Web
-                  Push notifications when new customers join (on iPhone, works
-                  after Add to Home Screen).
-                </span>
+          {/* Owner push alerts for this device */}
+          {pushAlerts.status !== 'checking' &&
+            pushAlerts.status !== 'unavailable' && (
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-start gap-3 text-xs text-slate-700 min-w-0">
+                  {pushAlerts.status === 'on' ? (
+                    <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  ) : (
+                    <Bell className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-1">
+                    {pushAlerts.status === 'on' && (
+                      <p>
+                        <strong>Alerts are on for this device.</strong> You&apos;ll
+                        be notified when a customer joins, when the queue is
+                        almost full, and 30 minutes before your join cutoff.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'off' && (
+                      <p>
+                        <strong>Get alerts on this device</strong> when a
+                        customer joins, when the queue is almost full, and 30
+                        minutes before your join cutoff.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'blocked' && (
+                      <p>
+                        <strong>Notifications are blocked for this site.</strong>{' '}
+                        Allow them in your browser&apos;s site settings to get
+                        alerts.
+                      </p>
+                    )}
+                    {pushAlerts.status === 'unsupported' && (
+                      <p>
+                        <strong>This browser can&apos;t show alerts.</strong> On
+                        iPhone or iPad, add PilaPH to your Home Screen first
+                        (Share, then Add to Home Screen) and open it from there.
+                      </p>
+                    )}
+                    {pushAlerts.error && (
+                      <p className="text-red-700">{pushAlerts.error}</p>
+                    )}
+                  </div>
+                </div>
+                {pushAlerts.status === 'off' && (
+                  <button
+                    type="button"
+                    disabled={pushAlerts.busy}
+                    onClick={pushAlerts.enable}
+                    className="px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 whitespace-nowrap min-h-[38px] disabled:opacity-60"
+                  >
+                    {pushAlerts.busy ? 'Turning on...' : 'Turn On Alerts'}
+                  </button>
+                )}
+                {pushAlerts.status === 'on' && (
+                  <button
+                    type="button"
+                    disabled={pushAlerts.busy}
+                    onClick={pushAlerts.disable}
+                    className="px-3.5 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 whitespace-nowrap min-h-[38px] disabled:opacity-60"
+                  >
+                    {pushAlerts.busy ? 'Turning off...' : 'Turn Off'}
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                disabled={subscribingPush}
-                onClick={handleEnablePushAlerts}
-                className="px-3.5 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 whitespace-nowrap min-h-[38px]"
-              >
-                {subscribingPush ? 'Enabling...' : 'Enable Owner Push Alerts'}
-              </button>
-            </div>
-          )}
+            )}
 
           {/* Top Summary Metrics + Open/Pause Queue Toggle */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
@@ -1372,8 +1486,68 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
          ======================================================================== */}
       {activeSubTab === 'setup' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Business Rules & Queue Capacity */}
+          {/* Left: Shop Photo, Business Rules & Queue Capacity */}
           <div className="lg:col-span-5 space-y-6">
+            {/* Shop photo shown at the top of the customer join page */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ImageIcon className="w-4 h-4 text-slate-900" />
+                <h2 className="text-base font-bold text-slate-900">
+                  Shop Photo
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500">
+                Shown at the top of your customer join page. Without a photo,
+                customers see your shop name on a plain background.
+              </p>
+
+              {business.photoUrl ? (
+                <img
+                  src={business.photoUrl}
+                  alt={`${business.name} photo`}
+                  className="w-full h-40 rounded-xl object-cover border border-slate-200"
+                />
+              ) : (
+                <div className="w-full h-40 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 flex items-end p-4">
+                  <span className="text-lg font-bold text-white truncate">
+                    {business.name}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <label
+                  className={`min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-slate-800 cursor-pointer focus-within:ring-2 focus-within:ring-slate-400 ${
+                    photoBusy ? 'opacity-60 pointer-events-none' : ''
+                  }`}
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  <span>
+                    {photoBusy
+                      ? 'Saving...'
+                      : business.photoUrl
+                        ? 'Change Photo'
+                        : 'Upload Photo'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    disabled={photoBusy}
+                    onChange={handleUploadPhoto}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={!business.photoUrl || photoBusy}
+                  className="min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Remove Photo
+                </button>
+              </div>
+            </div>
+
             <form
               onSubmit={(e) => handleSaveBusinessSettings(e, false)}
               className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"

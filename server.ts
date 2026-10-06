@@ -31,8 +31,17 @@ import {
 import { CreateTicket } from './src/actions/CreateTicket.ts';
 import { CallNextTicket } from './src/actions/CallNextTicket.ts';
 import { EndOfDayCleanup } from './src/actions/EndOfDayCleanup.ts';
+import { OwnerAlerts } from './src/actions/OwnerAlerts.ts';
+import { getVapidPublicKey, isPushConfigured } from './src/lib/owner-push.ts';
 import { SemaphoreSmsService } from './src/actions/SemaphoreSmsService.ts';
 import { normalizePhilippinePhone } from './src/actions/PhoneNormalizer.ts';
+import {
+  MAX_SHOP_PHOTO_BYTES,
+  SHOP_PHOTO_TYPES,
+  isImageOfType,
+  removeShopPhoto,
+  uploadShopPhoto,
+} from './src/lib/shop-photos.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -814,6 +823,80 @@ async function startServer() {
     }
   );
 
+  // POST /api/dashboard/business/photo (raw image body; shown on the customer join page)
+  app.post(
+    '/api/dashboard/business/photo',
+    requireAuth,
+    express.raw({ type: SHOP_PHOTO_TYPES, limit: MAX_SHOP_PHOTO_BYTES }),
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const contentType = String(req.headers['content-type'] || '')
+          .split(';')[0]
+          .trim();
+        const bytes = req.body;
+        if (
+          !Buffer.isBuffer(bytes) ||
+          bytes.length === 0 ||
+          !isImageOfType(bytes, contentType)
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'Upload a JPG, PNG or WebP photo.' });
+        }
+
+        const bizRows = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.id, businessId));
+        const previousUrl = bizRows[0]?.photoUrl ?? null;
+
+        const photoUrl = await uploadShopPhoto(businessId, bytes, contentType);
+        await db
+          .update(businesses)
+          .set({ photoUrl })
+          .where(eq(businesses.id, businessId));
+        await removeShopPhoto(previousUrl);
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error uploading shop photo:', error);
+        res.status(500).json({ error: 'Failed to upload shop photo.' });
+      }
+    }
+  );
+
+  // DELETE /api/dashboard/business/photo
+  app.delete(
+    '/api/dashboard/business/photo',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const bizRows = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.id, businessId));
+        const previousUrl = bizRows[0]?.photoUrl ?? null;
+
+        await db
+          .update(businesses)
+          .set({ photoUrl: null })
+          .where(eq(businesses.id, businessId));
+        await removeShopPhoto(previousUrl);
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error removing shop photo:', error);
+        res.status(500).json({ error: 'Failed to remove shop photo.' });
+      }
+    }
+  );
+
   // Services CRUD
   app.post(
     '/api/dashboard/services',
@@ -1205,6 +1288,96 @@ async function startServer() {
     }
   );
 
+  // GET /api/dashboard/push/public-key (VAPID public key the browser subscribes with)
+  app.get(
+    '/api/dashboard/push/public-key',
+    requireAuth,
+    (_req: AuthRequest, res) => {
+      const publicKey = getVapidPublicKey();
+      if (!publicKey) {
+        return res
+          .status(503)
+          .json({ error: 'Owner alerts are not set up on this server.' });
+      }
+      res.json({ publicKey });
+    }
+  );
+
+  // POST /api/dashboard/push-subscriptions (save this device's browser push subscription)
+  app.post(
+    '/api/dashboard/push-subscriptions',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const endpoint = String(req.body.endpoint || '');
+        const p256dh = String(req.body.keys?.p256dh || '');
+        const authKey = String(req.body.keys?.auth || '');
+        // Real push services only use HTTPS endpoints.
+        if (
+          !endpoint.startsWith('https://') ||
+          endpoint.length > 1000 ||
+          !p256dh ||
+          p256dh.length > 200 ||
+          !authKey ||
+          authKey.length > 100
+        ) {
+          return res.status(400).json({ error: 'Invalid push subscription.' });
+        }
+
+        const userAgent = (req.get('user-agent') || '').slice(0, 300) || null;
+        await db
+          .insert(pushSubscriptions)
+          .values({
+            businessId,
+            userUid: req.user!.uid,
+            endpoint,
+            p256dh,
+            auth: authKey,
+            userAgent,
+          })
+          .onConflictDoUpdate({
+            target: pushSubscriptions.endpoint,
+            set: {
+              businessId,
+              userUid: req.user!.uid,
+              p256dh,
+              auth: authKey,
+              userAgent,
+            },
+          });
+
+        res.status(201).json({ ok: true });
+      } catch (error: unknown) {
+        console.error('Error saving push subscription:', error);
+        res.status(500).json({ error: 'Failed to save push subscription.' });
+      }
+    }
+  );
+
+  // DELETE /api/dashboard/push-subscriptions (turn off alerts on this device)
+  app.delete(
+    '/api/dashboard/push-subscriptions',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const endpoint = String(req.body.endpoint || '');
+        await db
+          .delete(pushSubscriptions)
+          .where(
+            and(
+              eq(pushSubscriptions.endpoint, endpoint),
+              eq(pushSubscriptions.userUid, req.user!.uid)
+            )
+          );
+        res.json({ ok: true });
+      } catch (error: unknown) {
+        console.error('Error removing push subscription:', error);
+        res.status(500).json({ error: 'Failed to remove push subscription.' });
+      }
+    }
+  );
+
   // POST /api/dashboard/end-of-day-cleanup (run the nightly cleanup now for the owner's shop)
   app.post(
     '/api/dashboard/end-of-day-cleanup',
@@ -1223,45 +1396,6 @@ async function startServer() {
       } catch (error: unknown) {
         console.error('Error in end-of-day-cleanup:', error);
         res.status(500).json({ error: 'Failed to run end-of-day cleanup.' });
-      }
-    }
-  );
-
-  // POST /api/push-subscriptions
-  app.post(
-    '/api/push-subscriptions',
-    requireAuth,
-    async (req: AuthRequest, res) => {
-      try {
-        const businessId = await resolveOwnerBusinessId(req);
-        const endpoint = String(
-          req.body.endpoint || `webpush://${req.user!.uid}-${Date.now()}`
-        );
-        const p256dh = String(req.body.keys?.p256dh || 'demo-p256dh-key');
-        const authKey = String(req.body.keys?.auth || 'demo-auth-secret');
-
-        await db
-          .insert(pushSubscriptions)
-          .values({
-            businessId,
-            userUid: req.user!.uid,
-            endpoint,
-            p256dh,
-            auth: authKey,
-            userAgent: req.get('user-agent') || 'Browser PWA',
-          })
-          .onConflictDoUpdate({
-            target: pushSubscriptions.endpoint,
-            set: {
-              p256dh,
-              auth: authKey,
-            },
-          });
-
-        res.status(201).json({ ok: true });
-      } catch (error: unknown) {
-        console.error('Error saving push subscription:', error);
-        res.status(500).json({ error: 'Failed to save push subscription.' });
       }
     }
   );
@@ -1287,6 +1421,14 @@ async function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`PilaPH server listening on http://0.0.0.0:${PORT}`);
   });
+
+  // Owner "join cutoff is near" alerts. Checked twice a minute; each shop
+  // gets at most one reminder per day.
+  if (isPushConfigured()) {
+    setInterval(() => {
+      void OwnerAlerts.remindUpcomingCutoffs();
+    }, 30 * 1000);
+  }
 }
 
 startServer();

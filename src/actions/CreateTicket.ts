@@ -14,6 +14,7 @@ import {
   normalizePhilippinePhone,
 } from './PhoneNormalizer.ts';
 import { RealtimeBroadcaster } from './RealtimeBroadcaster.ts';
+import { OwnerAlerts } from './OwnerAlerts.ts';
 import { SemaphoreSmsService } from './SemaphoreSmsService.ts';
 
 // Per-service in-process mutex to serialize ticket numbering alongside DB unique constraint
@@ -300,6 +301,16 @@ export class CreateTicket {
           waiting_count: freshPublicState.waitingCount,
           waiting_codes: freshPublicState.waitingCodes,
           now_serving: freshPublicState.nowServing,
+        });
+
+        // Not awaited: the customer's join shouldn't wait on push services.
+        void OwnerAlerts.customerJoined({
+          businessId: biz.id,
+          code: createdResult.code,
+          customerName,
+          serviceName: svc.name,
+          waitingCount: freshPublicState.waitingCount,
+          maxWaiting: biz.maxWaiting,
         });
       }
 
