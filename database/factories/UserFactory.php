@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserRole;
+use App\Models\Business;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -34,6 +36,28 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
         ];
+    }
+
+    /**
+     * An owner with their own business (or the given one).
+     */
+    public function owner(?Business $business = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'business_id' => $business !== null ? $business->id : Business::factory(),
+            'role' => UserRole::Owner,
+        ]);
+    }
+
+    /**
+     * Staff at the given business (role reserved for later versions).
+     */
+    public function staff(Business $business): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'business_id' => $business->id,
+            'role' => UserRole::Staff,
+        ]);
     }
 
     /**
