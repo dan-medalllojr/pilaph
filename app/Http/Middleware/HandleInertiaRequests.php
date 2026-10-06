@@ -41,6 +41,8 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // The signed-in owner's shop, for the sidebar. Never includes the QR token.
+            'business' => fn () => $request->user()?->business?->only(['id', 'name', 'slug']),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
