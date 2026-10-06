@@ -4,3 +4,4 @@ dist
 .git
 drizzle
 *.log
+dev-dist
