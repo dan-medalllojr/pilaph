@@ -22,6 +22,8 @@ export const businesses = pgTable('businesses', {
   rotateQrDaily: boolean('rotate_qr_daily').notNull().default(false),
   qrTokenDate: text('qr_token_date').notNull(),
   timezone: text('timezone').notNull().default('Asia/Manila'),
+  // Public URL in the `shop-photos` Supabase Storage bucket; null = no photo.
+  photoUrl: text('photo_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

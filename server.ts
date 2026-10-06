@@ -33,6 +33,13 @@ import { CallNextTicket } from './src/actions/CallNextTicket.ts';
 import { EndOfDayCleanup } from './src/actions/EndOfDayCleanup.ts';
 import { SemaphoreSmsService } from './src/actions/SemaphoreSmsService.ts';
 import { normalizePhilippinePhone } from './src/actions/PhoneNormalizer.ts';
+import {
+  MAX_SHOP_PHOTO_BYTES,
+  SHOP_PHOTO_TYPES,
+  isImageOfType,
+  removeShopPhoto,
+  uploadShopPhoto,
+} from './src/lib/shop-photos.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -810,6 +817,80 @@ async function startServer() {
       } catch (error: unknown) {
         console.error('Error updating business settings:', error);
         res.status(500).json({ error: 'Failed to save business settings.' });
+      }
+    }
+  );
+
+  // POST /api/dashboard/business/photo (raw image body; shown on the customer join page)
+  app.post(
+    '/api/dashboard/business/photo',
+    requireAuth,
+    express.raw({ type: SHOP_PHOTO_TYPES, limit: MAX_SHOP_PHOTO_BYTES }),
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const contentType = String(req.headers['content-type'] || '')
+          .split(';')[0]
+          .trim();
+        const bytes = req.body;
+        if (
+          !Buffer.isBuffer(bytes) ||
+          bytes.length === 0 ||
+          !isImageOfType(bytes, contentType)
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'Upload a JPG, PNG or WebP photo.' });
+        }
+
+        const bizRows = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.id, businessId));
+        const previousUrl = bizRows[0]?.photoUrl ?? null;
+
+        const photoUrl = await uploadShopPhoto(businessId, bytes, contentType);
+        await db
+          .update(businesses)
+          .set({ photoUrl })
+          .where(eq(businesses.id, businessId));
+        await removeShopPhoto(previousUrl);
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error uploading shop photo:', error);
+        res.status(500).json({ error: 'Failed to upload shop photo.' });
+      }
+    }
+  );
+
+  // DELETE /api/dashboard/business/photo
+  app.delete(
+    '/api/dashboard/business/photo',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const businessId = await resolveOwnerBusinessId(req);
+        const bizRows = await db
+          .select()
+          .from(businesses)
+          .where(eq(businesses.id, businessId));
+        const previousUrl = bizRows[0]?.photoUrl ?? null;
+
+        await db
+          .update(businesses)
+          .set({ photoUrl: null })
+          .where(eq(businesses.id, businessId));
+        await removeShopPhoto(previousUrl);
+
+        invalidatePublicQueueCache(businessId);
+        const dashboard = await getOwnerDashboardState(businessId);
+        res.json({ ok: true, dashboard });
+      } catch (error: unknown) {
+        console.error('Error removing shop photo:', error);
+        res.status(500).json({ error: 'Failed to remove shop photo.' });
       }
     }
   );

@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  Image as ImageIcon,
+  ImagePlus,
   LogIn,
   LogOut,
   Megaphone,
@@ -35,6 +37,30 @@ function getInitials(name: string): string {
   const initials =
     words.length >= 2 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2);
   return initials.toUpperCase();
+}
+
+// Shrinks phone photos before upload and re-encodes them as JPEG, which also
+// drops hidden metadata such as GPS location.
+async function resizeShopPhoto(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available.');
+  // JPEG has no transparency; paint white so transparent PNGs don't turn black.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode photo.'))),
+      'image/jpeg',
+      0.85
+    )
+  );
 }
 
 export type DashboardSubTab = 'today' | 'sms' | 'setup' | 'stats' | 'qr';
@@ -108,6 +134,7 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
   const [joinCutoffTime, setJoinCutoffTime] = useState<string>('21:30');
   const [rotateQrDaily, setRotateQrDaily] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const [newSvcName, setNewSvcName] = useState('');
   const [newSvcPrefix, setNewSvcPrefix] = useState('');
@@ -386,6 +413,71 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
       }
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // so picking the same file again still triggers a change
+    if (!file || photoBusy) return;
+    setPhotoBusy(true);
+    try {
+      let photo: Blob;
+      try {
+        photo = await resizeShopPhoto(file);
+      } catch {
+        showFeedback(
+          'error',
+          'That file could not be read as a photo. Use a JPG, PNG or WebP image.'
+        );
+        return;
+      }
+      const res = await fetch('/api/dashboard/business/photo', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'image/jpeg',
+        },
+        body: photo,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.dashboard) {
+        setDashboard(data.dashboard);
+        showFeedback('success', 'Shop photo updated.');
+      } else {
+        showFeedback(
+          'error',
+          res.status === 413
+            ? 'That photo is too large. Try a smaller one.'
+            : data.error || 'Could not upload the photo.'
+        );
+      }
+    } catch {
+      showFeedback('error', 'Network error while uploading the photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (photoBusy || !window.confirm('Remove the shop photo?')) return;
+    setPhotoBusy(true);
+    try {
+      const res = await fetch('/api/dashboard/business/photo', {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.dashboard) {
+        setDashboard(data.dashboard);
+        showFeedback('success', 'Shop photo removed.');
+      } else {
+        showFeedback('error', data.error || 'Could not remove the photo.');
+      }
+    } catch {
+      showFeedback('error', 'Network error while removing the photo.');
+    } finally {
+      setPhotoBusy(false);
     }
   };
 
@@ -1372,8 +1464,68 @@ export const OwnerDashboardView: React.FC<OwnerDashboardViewProps> = ({
          ======================================================================== */}
       {activeSubTab === 'setup' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Business Rules & Queue Capacity */}
+          {/* Left: Shop Photo, Business Rules & Queue Capacity */}
           <div className="lg:col-span-5 space-y-6">
+            {/* Shop photo shown at the top of the customer join page */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ImageIcon className="w-4 h-4 text-slate-900" />
+                <h2 className="text-base font-bold text-slate-900">
+                  Shop Photo
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500">
+                Shown at the top of your customer join page. Without a photo,
+                customers see your shop name on a plain background.
+              </p>
+
+              {business.photoUrl ? (
+                <img
+                  src={business.photoUrl}
+                  alt={`${business.name} photo`}
+                  className="w-full h-40 rounded-xl object-cover border border-slate-200"
+                />
+              ) : (
+                <div className="w-full h-40 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 flex items-end p-4">
+                  <span className="text-lg font-bold text-white truncate">
+                    {business.name}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <label
+                  className={`min-h-[42px] px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-slate-800 cursor-pointer focus-within:ring-2 focus-within:ring-slate-400 ${
+                    photoBusy ? 'opacity-60 pointer-events-none' : ''
+                  }`}
+                >
+                  <ImagePlus className="w-4 h-4" />
+                  <span>
+                    {photoBusy
+                      ? 'Saving...'
+                      : business.photoUrl
+                        ? 'Change Photo'
+                        : 'Upload Photo'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    disabled={photoBusy}
+                    onChange={handleUploadPhoto}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={!business.photoUrl || photoBusy}
+                  className="min-h-[42px] px-3 py-2 rounded-xl border border-slate-300 text-slate-800 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-transparent"
+                >
+                  Remove Photo
+                </button>
+              </div>
+            </div>
+
             <form
               onSubmit={(e) => handleSaveBusinessSettings(e, false)}
               className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4"

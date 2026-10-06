@@ -14,6 +14,7 @@ export interface Business {
   rotateQrDaily: boolean;
   qrTokenDate: string;
   timezone: string;
+  photoUrl: string | null;
 }
 
 export interface ServiceItem {
@@ -94,6 +95,7 @@ export interface PublicQueueState {
     rotateQrDaily: boolean;
     qrToken?: string; // Included only when rotateQrDaily is true so TV display can render live QR
     timezone: string;
+    photoUrl: string | null;
     isPastCutoff: boolean;
     isFull: boolean;
     manilaTime: string;
