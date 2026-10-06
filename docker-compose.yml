@@ -1,34 +1,42 @@
-version: '3.9'
+# Local development services.
+#
+#   docker compose up -d postgres   Postgres only; run the app on the host with `composer run dev`
+#   docker compose up -d --build    Postgres + the production image at http://localhost:8101
+#
+# Postgres also gets a `pilaph_test` database for Pest (docker/postgres/).
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - SQL_HOST=postgres
-      - SQL_DB_NAME=pilaph_queue
-      - SQL_USER=postgres
-      - SQL_PASSWORD=postgres
-      - SQL_ADMIN_USER=postgres
-      - SQL_ADMIN_PASSWORD=postgres
-      - SMS_DRIVER=log
-    depends_on:
-      - postgres
+    postgres:
+        image: postgres:17-alpine
+        restart: unless-stopped
+        environment:
+            POSTGRES_DB: pilaph
+            POSTGRES_USER: pilaph
+            POSTGRES_PASSWORD: pilaph
+        ports:
+            - '5432:5432'
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U pilaph -d pilaph']
+            interval: 5s
+            timeout: 3s
+            retries: 10
 
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=pilaph_queue
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    app:
+        build: .
+        depends_on:
+            postgres:
+                condition: service_healthy
+        env_file: .env
+        environment:
+            # Inside the compose network, Postgres is reachable by its service name.
+            DB_HOST: postgres
+            DB_PORT: 5432
+            APP_URL: http://localhost:8101
+            PORT: 8080
+        ports:
+            - '8101:8080'
 
 volumes:
-  pgdata:
+    pgdata:

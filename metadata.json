@@ -1,6 +1,0 @@
-{
-  "name": "PilaPH — Virtual Queue & SMS Turn System",
-  "description": "Mobile-first virtual queue, QR ticket system, live TV display, and SMS notification platform for Philippine barbershops, clinics, and offices.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
