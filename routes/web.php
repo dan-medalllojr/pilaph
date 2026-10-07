@@ -14,6 +14,7 @@ use App\Http\Controllers\Owner\PushSubscriptionController;
 use App\Http\Controllers\Owner\QrPosterController;
 use App\Http\Controllers\Owner\QueueController;
 use App\Http\Controllers\Owner\ServiceController;
+use App\Http\Controllers\Owner\StatsController;
 use App\Http\Middleware\EnsureUserHasBusiness;
 use Illuminate\Support\Facades\Route;
 
@@ -73,6 +74,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('throttle:5,1')
             ->name('push-subscriptions.test');
 
+        Route::get('stats', [StatsController::class, 'show'])->name('stats.show');
         Route::get('qr', [QrPosterController::class, 'show'])->name('qr.show');
         Route::get('display', [DisplaySettingsController::class, 'edit'])->name('display.edit');
         Route::post('display/reset', [DisplaySettingsController::class, 'reset'])->name('display.reset');

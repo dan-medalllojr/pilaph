@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import {
     Armchair,
+    ChartColumnBig,
     LayoutGrid,
     QrCode,
     Scissors,
@@ -24,6 +25,7 @@ import { edit as businessSettings } from '@/routes/business';
 import { index as counters } from '@/routes/counters';
 import { edit as tvDisplay } from '@/routes/display';
 import { show as qrPoster } from '@/routes/qr';
+import { show as stats } from '@/routes/stats';
 import { index as services } from '@/routes/services';
 import type { NavItem } from '@/types';
 
@@ -32,6 +34,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Stats',
+        href: stats(),
+        icon: ChartColumnBig,
     },
     {
         title: 'Services',

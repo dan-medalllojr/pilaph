@@ -202,7 +202,7 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | POST | `/dashboard/queue/toggle` | Open or pause the queue |
 | resource | `/dashboard/services` | CRUD services |
 | resource | `/dashboard/counters` | CRUD counters |
-| GET | `/dashboard/stats` | Served today/week, average wait, busiest hours |
+| GET | `/dashboard/stats?days=1\|7\|30` | Today / last 7 / last 30 days (shop's timezone): served of joined, average wait (joined to called), average service (called to done), no-shows with rate, busiest hours (joins per local hour), served per day, by service and by counter. No names or phones |
 | GET | `/dashboard/qr` | Printable QR poster for the join page (warns when the QR code changes nightly) |
 | GET | `/dashboard/display` | TV display link, setup steps, reset |
 | POST | `/dashboard/display/reset` | New TV link; screens on the old one show "This TV link no longer works" |
@@ -376,7 +376,7 @@ Keep `.env.example` in sync with this table.
 7. **TV display**: large "now serving" per counter plus the next 5 codes, the join QR code, a highlight and optional chime when a number is called (or recalled), full screen and keep-awake. Also done in this phase: the printable QR poster (moved up from phase 10) and the end-of-day command (needed for the nightly QR change).
 8. **SMS**: Semaphore channel, log driver, near/called logic, `sms_logs`.
 9. **PWA + web push**: manifest, service worker, install banner, owner push alerts.
-10. **Stats**: stats page (the QR poster was done in phase 7).
+10. **Stats**: stats page (the QR poster was done in phase 7). Charts are plain HTML bars, so no chart library is needed.
 11. **Demo polish**: shop photo on the join page (from the Node version; needs Supabase Storage, since Railway's disk is wiped on every deploy), seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
 
 ## Tests (Pest)
@@ -426,6 +426,7 @@ app/
 │   ├── DisplayState.php        what the TV shows (counters, next codes, join QR)
 │   ├── JoinQrCode.php          join link with QR token, drawn as an SVG
 │   ├── QueueTexts.php          who gets a text when the queue moves (claims *_sms_sent_at)
+│   ├── ShopStats.php           the stats page's numbers, in the shop's timezone
 │   ├── OwnerQueueState.php     dashboard view with names (never phones)
 │   └── OwnerAlerts.php         which push alerts to send, and when
 ├── Notifications/
