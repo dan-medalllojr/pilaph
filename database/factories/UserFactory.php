@@ -71,6 +71,17 @@ class UserFactory extends Factory
     }
 
     /**
+     * Signed up with Google and never set a password.
+     */
+    public function withGoogle(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'google_id' => (string) fake()->unique()->randomNumber(9, true),
+            'password' => null,
+        ]);
+    }
+
+    /**
      * Indicate that the model has two-factor authentication configured.
      */
     public function withTwoFactor(): static

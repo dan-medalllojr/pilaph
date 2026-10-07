@@ -17,8 +17,9 @@ class PasswordUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        // Owners who signed up with Google are setting their first password.
         return [
-            'current_password' => $this->currentPasswordRules(),
+            ...($this->user()?->hasPassword() === false ? [] : ['current_password' => $this->currentPasswordRules()]),
             'password' => $this->passwordRules(),
         ];
     }

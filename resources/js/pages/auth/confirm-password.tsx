@@ -1,4 +1,5 @@
 import { Form, Head } from '@inertiajs/react';
+import GoogleSignInButton from '@/components/google-sign-in-button';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
@@ -11,10 +12,19 @@ import {
 } from '@/actions/Laravel/Passkeys/Http/Controllers/PasskeyConfirmationController';
 import PasskeyVerify from '@/components/passkey-verify';
 
-export default function ConfirmPassword() {
+type Props = {
+    /** False for owners who signed up with Google and never set a password. */
+    hasPassword: boolean;
+    canConfirmWithGoogle: boolean;
+};
+
+export default function ConfirmPassword({
+    hasPassword,
+    canConfirmWithGoogle,
+}: Props) {
     return (
         <>
-            <Head title="Confirm password" />
+            <Head title="Confirm it's you" />
 
             <PasskeyVerify
                 routes={{
@@ -23,44 +33,49 @@ export default function ConfirmPassword() {
                 }}
                 label="Confirm with passkey"
                 loadingLabel="Confirming..."
-                separator="Or confirm with password"
-            />
-
-            <Form {...store.form()} resetOnSuccess={['password']}>
-                {({ processing, errors }) => (
-                    <div className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label htmlFor="password">Password</Label>
-                            <PasswordInput
-                                id="password"
-                                name="password"
-                                placeholder="Password"
-                                autoComplete="current-password"
-                                autoFocus
-                            />
-
-                            <InputError message={errors.password} />
-                        </div>
-
-                        <div className="flex items-center">
-                            <Button
-                                className="w-full"
-                                disabled={processing}
-                                data-test="confirm-password-button"
-                            >
-                                {processing && <Spinner />}
-                                Confirm password
-                            </Button>
-                        </div>
-                    </div>
+                separator={hasPassword ? 'Or confirm with password' : false}
+            >
+                {canConfirmWithGoogle && (
+                    <GoogleSignInButton label="Confirm with Google" />
                 )}
-            </Form>
+            </PasskeyVerify>
+
+            {hasPassword && (
+                <Form {...store.form()} resetOnSuccess={['password']}>
+                    {({ processing, errors }) => (
+                        <div className="space-y-6">
+                            <div className="grid gap-2">
+                                <Label htmlFor="password">Password</Label>
+                                <PasswordInput
+                                    id="password"
+                                    name="password"
+                                    placeholder="Password"
+                                    autoComplete="current-password"
+                                    autoFocus
+                                />
+
+                                <InputError message={errors.password} />
+                            </div>
+
+                            <div className="flex items-center">
+                                <Button
+                                    className="w-full"
+                                    disabled={processing}
+                                    data-test="confirm-password-button"
+                                >
+                                    {processing && <Spinner />}
+                                    Confirm password
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </Form>
+            )}
         </>
     );
 }
 
 ConfirmPassword.layout = {
-    title: 'Confirm password',
-    description:
-        'This is a secure area of the application. Please confirm your password before continuing.',
+    title: "Confirm it's you",
+    description: 'This is a secure area of the application.',
 };

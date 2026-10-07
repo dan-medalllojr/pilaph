@@ -42,4 +42,12 @@ return [
         'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
     ],
 
+    // Owner sign-in with Google. Google sends people back to /auth/google/callback
+    // on whatever domain the app runs on; add each one in Google Cloud Console.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => '/auth/google/callback',
+    ],
+
 ];

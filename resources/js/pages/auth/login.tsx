@@ -1,4 +1,5 @@
 import { Form, Head } from '@inertiajs/react';
+import GoogleSignInButton from '@/components/google-sign-in-button';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
@@ -15,14 +16,21 @@ import PasskeyVerify from '@/components/passkey-verify';
 type Props = {
     status?: string;
     canResetPassword: boolean;
+    canSignInWithGoogle: boolean;
 };
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({
+    status,
+    canResetPassword,
+    canSignInWithGoogle,
+}: Props) {
     return (
         <>
             <Head title="Log in" />
 
-            <PasskeyVerify />
+            <PasskeyVerify>
+                {canSignInWithGoogle && <GoogleSignInButton />}
+            </PasskeyVerify>
 
             <Form
                 {...store.form()}

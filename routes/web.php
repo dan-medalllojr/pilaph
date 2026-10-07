@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Customer\JoinController;
 use App\Http\Controllers\Customer\QueueStateController;
 use App\Http\Controllers\Customer\TicketController;
@@ -13,6 +14,12 @@ use App\Http\Middleware\EnsureUserHasBusiness;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// "Continue with Google" for owners. Email and password sign-in is Fortify's.
+Route::middleware('throttle:10,1')->group(function () {
+    Route::get('auth/google', [GoogleController::class, 'redirect'])->name('google.redirect');
+    Route::get('auth/google/callback', [GoogleController::class, 'callback'])->name('google.callback');
+});
 
 // Customer pages (no login). The ticket's UUID link is the customer's identity.
 Route::get('q/{business:slug}', [JoinController::class, 'show'])->name('queue.join');

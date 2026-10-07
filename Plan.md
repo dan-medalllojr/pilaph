@@ -19,6 +19,7 @@ Shape of the solution: one Laravel monolith (Inertia + React) + Supabase Postgre
 | Push | Web Push (`laravel-notification-channels/webpush`) | Owner alerts when the PWA is closed |
 | PWA | `vite-plugin-pwa` | Manifest + service worker, installable owner dashboard |
 | Queue driver | `database` | No Redis needed at this scale |
+| Owner sign-in | Fortify + Laravel Socialite | Email and password, passkeys, two-factor codes, and "Continue with Google". Google keys live in Laravel's `.env`, not in Supabase |
 | Tests | Pest | Feature tests for the core flows |
 | Containers | Docker | One image for local development and production |
 | Hosting | Railway | Deployed from the Dockerfile; usage-based billing with a spending limit |
@@ -115,7 +116,7 @@ Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /
 | timezone | default `Asia/Manila` |
 
 ### users
-Laravel default fields plus `business_id` (FK) and `role` (`owner` | `staff`, enum).
+Laravel default fields plus `business_id` (FK), `role` (`owner` | `staff`, enum) and `google_id` (nullable, unique; Google's account ID). `password` is nullable: owners who sign up with Google have none until they set one.
 
 ### services
 | Field | Notes |
@@ -176,6 +177,14 @@ Created by the web push package's migration.
 | GET | `/q/{business:slug}/display` | TV "now serving" display |
 | GET | `/q/{business:slug}/state` | JSON snapshot without personal data (for refetch) |
 | GET | `/t/{ticket}/state` | JSON snapshot for one ticket |
+
+### Owner sign-in
+Fortify's routes (`/login`, `/register`, password reset, email verification, two-factor, passkeys) plus:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/auth/google` | Send the owner to Google (account picker always shown). A signed-in owner comes here to confirm it's them |
+| GET | `/auth/google/callback` | Sign in, link or create the account; or confirm a signed-in owner |
 
 ### Owner (auth, scoped to own business via policies)
 | Method | Path | Purpose |
@@ -280,6 +289,8 @@ The join page shows the current estimated wait **before** joining, so customers 
 - Rate-limit ticket creation per IP and per phone; add a honeypot field to the join form.
 - When `rotate_qr_daily` is on, the QR token changes every night (scheduled command). Because a printed poster would go stale, the TV display shows the current QR code in that mode; businesses that only use a printed poster keep rotation off.
 - Supabase service-role key lives only in Laravel's `.env`; the browser gets only the anon key.
+- Google sign-in: accounts are matched by Google ID, then by email. Google has verified the email, so an existing **verified** account with that email is linked; an **unverified** one is refused (whoever created it never proved they own the email, and linking would let them back in with its password). Owners with two-factor codes still enter one after Google.
+- Owners without a password confirm sensitive actions (security settings, deleting the account) with the same Google account instead.
 
 ---
 
@@ -325,6 +336,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `LOG_CHANNEL=stderr` | Logs appear in Railway's log viewer |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Server only; used by `SupabaseBroadcaster` |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Build arguments for the frontend |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | "Continue with Google" (hidden when empty). In Google Cloud Console, add `<APP_URL>/auth/google/callback` as an authorized redirect URI for every domain |
 | `SMS_DRIVER` | `log` or `semaphore` |
 | `SEMAPHORE_API_KEY`, `SEMAPHORE_SENDER_NAME` | |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web push |
@@ -340,6 +352,7 @@ Keep `.env.example` in sync with this table.
 4. **Customer join + ticket page**: join form with QR token, idempotency key, device cookie, capacity and cutoff checks; numbering transaction; ticket page with position and ETA (polling only at first).
 5. **Owner dashboard**: today view, call next (with counter lock and expected-ticket check), done, no-show, recall, bulk remove, open/pause queue. Mobile-first layout with large tap targets and buttons disabled while processing.
 6. **Real-time**: `SupabaseBroadcaster` service, after-commit broadcasts, React `useQueueChannel` hook, refetch on reconnect and visibility change, polling fallback.
+   - Added after phase 6: **Google sign-in** for owners (Socialite), including confirming with Google and setting a first password.
 7. **TV display**: large "now serving" per counter plus the next 5 codes.
 8. **SMS**: Semaphore channel, log driver, near/called logic, `sms_logs`.
 9. **PWA + web push**: manifest, service worker, install banner, owner push alerts.
@@ -380,6 +393,7 @@ app/
 │   ├── RecallTicket.php
 │   ├── BulkRemoveTickets.php
 │   ├── ToggleQueue.php
+│   ├── FindOrCreateGoogleOwner.php  Google sign-in: link by verified email or create
 │   └── RunEndOfDayCleanup.php
 ├── Services/                   outside systems and shared calculations
 │   ├── SupabaseBroadcaster.php POST to Supabase Realtime

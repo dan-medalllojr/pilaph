@@ -15,6 +15,8 @@ import ManageTwoFactor from '@/components/manage-two-factor';
 // oxfmt-ignore
 type Props = {
     passwordRules: string;
+    /** False for owners who signed up with Google and never set a password. */
+    hasPassword: boolean;
 } & ManagePasskeysProps &
     ManageTwoFactorProps;
 
@@ -29,11 +31,19 @@ export default function Security(props: Props) {
             <h1 className="sr-only">Security settings</h1>
 
             <div className="space-y-6">
-                <Heading
-                    variant="small"
-                    title="Update password"
-                    description="Ensure your account is using a long, random password to stay secure"
-                />
+                {props.hasPassword ? (
+                    <Heading
+                        variant="small"
+                        title="Update password"
+                        description="Ensure your account is using a long, random password to stay secure"
+                    />
+                ) : (
+                    <Heading
+                        variant="small"
+                        title="Set a password"
+                        description="You sign in with Google. Add a password to also log in with your email."
+                    />
+                )}
 
                 <Form
                     {...SecurityController.update.form()}
@@ -59,22 +69,26 @@ export default function Security(props: Props) {
                 >
                     {({ errors, processing }) => (
                         <>
-                            <div className="grid gap-2">
-                                <Label htmlFor="current_password">
-                                    Current password
-                                </Label>
+                            {props.hasPassword && (
+                                <div className="grid gap-2">
+                                    <Label htmlFor="current_password">
+                                        Current password
+                                    </Label>
 
-                                <PasswordInput
-                                    id="current_password"
-                                    ref={currentPasswordInput}
-                                    name="current_password"
-                                    className="mt-1 block w-full"
-                                    autoComplete="current-password"
-                                    placeholder="Current password"
-                                />
+                                    <PasswordInput
+                                        id="current_password"
+                                        ref={currentPasswordInput}
+                                        name="current_password"
+                                        className="mt-1 block w-full"
+                                        autoComplete="current-password"
+                                        placeholder="Current password"
+                                    />
 
-                                <InputError message={errors.current_password} />
-                            </div>
+                                    <InputError
+                                        message={errors.current_password}
+                                    />
+                                </div>
+                            )}
 
                             <div className="grid gap-2">
                                 <Label htmlFor="password">New password</Label>

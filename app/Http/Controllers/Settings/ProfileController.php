@@ -21,6 +21,7 @@ class ProfileController extends Controller
     {
         return Inertia::render('settings/profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'hasPassword' => $request->user()?->hasPassword() ?? true,
             'status' => $request->session()->get('status'),
         ]);
     }
@@ -50,6 +51,12 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // Owners who only sign in with Google have no password to type, so they
+        // confirm with Google first, then press Delete again.
+        if (! $user->hasPassword() && ! $this->recentlyConfirmed($request)) {
+            return redirect()->guest(route('password.confirm'));
+        }
+
         Auth::logout();
 
         $user->delete();
@@ -58,5 +65,12 @@ class ProfileController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function recentlyConfirmed(Request $request): bool
+    {
+        $confirmedAt = (int) $request->session()->get('auth.password_confirmed_at', 0);
+
+        return now()->unix() - $confirmedAt < (int) config('auth.password_timeout', 10800);
     }
 }

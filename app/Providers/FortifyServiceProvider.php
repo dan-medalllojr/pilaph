@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Controllers\Auth\GoogleController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -50,6 +51,7 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
+            'canSignInWithGoogle' => GoogleController::isConfigured(),
             'status' => $request->session()->get('status'),
         ]));
 
@@ -69,11 +71,16 @@ class FortifyServiceProvider extends ServiceProvider
 
         Fortify::registerView(fn () => Inertia::render('auth/register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'canSignInWithGoogle' => GoogleController::isConfigured(),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
 
-        Fortify::confirmPasswordView(fn () => Inertia::render('auth/confirm-password'));
+        // Owners who sign in with Google may have no password; they confirm with Google.
+        Fortify::confirmPasswordView(fn (Request $request) => Inertia::render('auth/confirm-password', [
+            'hasPassword' => $request->user()?->hasPassword() ?? true,
+            'canConfirmWithGoogle' => GoogleController::isConfigured() && $request->user()?->google_id !== null,
+        ]));
     }
 
     /**
