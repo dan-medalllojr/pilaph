@@ -160,7 +160,7 @@ Constraints and indexes:
 - Index `(business_id, queue_date, status, joined_at)` for queue lookups.
 
 ### sms_logs
-`ticket_id`, `phone`, `type` (`near` | `called`), `message`, `status`, `provider_response`, timestamps.
+`ticket_id`, `phone`, `type` (`near` | `called`), `message`, `status` (`sent` | `failed` | `logged`), `provider_message_id`, `provider_response`, timestamps. One row per attempt.
 
 ### push_subscriptions
 Created by the web push package's migration.
@@ -235,7 +235,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 6. After commit:
    - Broadcast `ticket.called` on `queue:{business_id}` and `ticket:{uuid}`.
    - Queue the "called" SMS if the ticket has a phone and `called_sms_sent_at` is null.
-   - Find the waiting ticket now at position `near_threshold` and queue its "near" SMS if `near_sms_sent_at` is null.
+   - Queue the "near" SMS for every waiting ticket now within position `near_threshold` that has a phone and a null `near_sms_sent_at`.
 7. If no one is waiting, return a friendly "Queue is empty" message.
 
 ### 3. Position and estimated wait
@@ -254,7 +254,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 ## Customer identity (no login)
 - Customers never create accounts. The ticket's UUID link is their identity; only someone holding it can view or cancel the ticket.
 - The ticket UUID is saved in `localStorage`, and a long-lived `device_id` cookie is set on first visit.
-- SMS messages include the ticket link so customers can reopen it from any device.
+- The "near" SMS includes the ticket link so customers can reopen it from any device.
 - Only the owner logs in.
 
 ## Duplicate-request protection
@@ -277,11 +277,17 @@ The join page shows the current estimated wait **before** joining, so customers 
 - **Supabase Realtime limits:** the free tier caps concurrent connections and messages. Check current limits before demos; upgrade or switch to Pusher if they become a problem.
 
 ## SMS (Semaphore)
-- Custom notification channel `SemaphoreChannel` using Laravel's HTTP client; all sends are queued jobs.
-- Driver switch in `.env`: `SMS_DRIVER=log` (development, writes to the log) or `SMS_DRIVER=semaphore`.
-- At most two texts per ticket: "near" and "called". Both are guarded by their `*_sms_sent_at` columns so retries never double-send.
-- Log every attempt in `sms_logs`.
-- Messages stay short and in plain English, e.g. "Hi Ana, 3 people ahead of you at Juan's Barbershop (A-024)." and "A-024, please proceed to Chair 2."
+- Custom notification channel `SemaphoreChannel` that sends through the `SemaphoreClient` service (Laravel's HTTP client). Texts are queued notifications (`TicketNearTurn`, `TicketCalled`), dispatched after the database commits.
+- Driver switch in `.env`: `SMS_DRIVER=log` (development, writes to the log and `sms_logs`) or `SMS_DRIVER=semaphore`.
+- At most two texts per ticket: "near" and "called". `QueueTexts` claims each in its `*_sms_sent_at` column (an atomic `UPDATE ... WHERE ... IS NULL`) before queueing it, so repeated taps, retries and Recall never send it again.
+- "Near" goes to every waiting customer within `near_threshold` of the front after a call, not only the one exactly at that position: two counters calling at once can move the queue past it. (Changed in phase 8.)
+- Only the "near" text has the ticket link. "Called" stays short so it fits one SMS and goes out fast. (Changed in phase 8.)
+- A text is dropped if it no longer applies when the worker gets to it (e.g. the customer cancelled, or was already served).
+- Retried only when Semaphore answered with a server error or rate limit (nothing went out). No answer at all is never retried, since the text may have gone out: customers never get the same text twice.
+- Messages are plain ASCII ("Peña" becomes "Pena") and at most 160 characters, shortening the shop name if needed, so each costs one SMS credit. One character outside the basic SMS alphabet would switch the whole text to 70-character parts.
+- `SEMAPHORE_SENDER_NAME` only once Semaphore approves it; empty sends as Semaphore's default sender (an unapproved name makes every text fail).
+- Log every attempt in `sms_logs` (`sent`, `failed` or `logged`), never with the API key.
+- Messages stay short and in plain English, e.g. "Hi Ana, 2 people ahead of you at Juan's Barbershop (A-024). Please head back now. <ticket link>" and "A-024, please proceed to Chair 2 at Juan's Barbershop."
 
 ## PWA
 - `vite-plugin-pwa` with a manifest (`name`, icons, `start_url: /dashboard`, `display: standalone`).
@@ -412,13 +418,15 @@ app/
 │   ├── PublicQueueState.php    cached snapshot without personal data
 │   ├── DisplayState.php        what the TV shows (counters, next codes, join QR)
 │   ├── JoinQrCode.php          join link with QR token, drawn as an SVG
+│   ├── QueueTexts.php          who gets a text when the queue moves (claims *_sms_sent_at)
 │   └── OwnerQueueState.php     dashboard view with names (never phones)
 ├── Notifications/
 │   ├── Channels/SemaphoreChannel.php   uses SemaphoreClient (or the log driver)
-│   ├── TicketNearTurn.php              "3 people ahead of you" SMS
+│   ├── TicketText.php                  base: queued, plain ASCII, 160 characters
+│   ├── TicketNearTurn.php              "2 people ahead of you" SMS
 │   ├── TicketCalled.php                "please proceed to Chair 2" SMS
 │   └── CustomerJoined.php              owner web push
-├── Enums/                      TicketStatus, UserRole, SmsType
+├── Enums/                      TicketStatus, UserRole, SmsType, SmsStatus
 ├── Models/                     Business, Service, Counter, Ticket, SmsLog
 ├── Policies/                   owners only touch their own business
 ├── Http/

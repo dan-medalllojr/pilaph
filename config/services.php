@@ -42,6 +42,20 @@ return [
         'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
     ],
 
+    // Texts to customers. SMS_DRIVER=log writes them to the log instead of
+    // sending them (development); SMS_DRIVER=semaphore sends real SMS.
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+    ],
+
+    // SEMAPHORE_SENDER_NAME must be approved by Semaphore first; leave it
+    // empty to send as their default sender.
+    'semaphore' => [
+        'api_key' => env('SEMAPHORE_API_KEY'),
+        'sender_name' => env('SEMAPHORE_SENDER_NAME'),
+        'url' => 'https://api.semaphore.co/api/v4',
+    ],
+
     // Owner sign-in with Google. Google sends people back to /auth/google/callback
     // on whatever domain the app runs on; add each one in Google Cloud Console.
     'google' => [

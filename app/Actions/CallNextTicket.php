@@ -7,6 +7,7 @@ use App\Exceptions\QueueConflict;
 use App\Models\Counter;
 use App\Models\Ticket;
 use App\Services\QueueEvents;
+use App\Services\QueueTexts;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +17,10 @@ use Illuminate\Support\Facades\DB;
  */
 class CallNextTicket
 {
-    public function __construct(private QueueEvents $events) {}
+    public function __construct(
+        private QueueEvents $events,
+        private QueueTexts $texts,
+    ) {}
 
     /**
      * Finishes the counter's current ticket and calls the oldest waiting one.
@@ -89,9 +93,11 @@ class CallNextTicket
             $lock->release();
         }
 
-        // After commit: tell the ticket pages, TV display and dashboard.
+        // After commit: tell the ticket pages, TV display and dashboard, and
+        // text the customers who gave a phone number.
         if ($result['called'] !== null) {
             $this->events->ticketCalled($result['called'], $result['finished']);
+            $this->texts->afterCall($result['called']);
         } elseif ($result['finished'] !== null) {
             $this->events->ticketsUpdated($business, [$result['finished']]);
         }

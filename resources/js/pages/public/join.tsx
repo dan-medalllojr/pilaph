@@ -225,8 +225,8 @@ function JoinForm({
                             placeholder="0917 123 4567"
                         />
                         <p className="text-xs text-muted-foreground">
-                            We&apos;ll text you when your turn is near, so you
-                            can wait nearby.
+                            We&apos;ll text you when your turn is near and when
+                            you&apos;re called, so you can wait nearby.
                         </p>
                         <InputError message={errors.phone} />
                     </div>

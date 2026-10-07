@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
 /**
@@ -57,7 +59,7 @@ use Illuminate\Support\Str;
 class Ticket extends Model
 {
     /** @use HasFactory<TicketFactory> */
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, Notifiable;
 
     /**
      * The ticket ID is the customer's link, so use a fully random UUID (v4)
@@ -91,6 +93,22 @@ class Ticket extends Model
     public function counter(): BelongsTo
     {
         return $this->belongsTo(Counter::class);
+    }
+
+    /**
+     * @return HasMany<SmsLog, $this>
+     */
+    public function smsLogs(): HasMany
+    {
+        return $this->hasMany(SmsLog::class);
+    }
+
+    /**
+     * Texts go to the customer's phone, if they gave one.
+     */
+    public function routeNotificationForSemaphore(): ?string
+    {
+        return $this->phone;
     }
 
     /**
