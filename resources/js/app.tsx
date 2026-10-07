@@ -18,6 +18,9 @@ void createInertiaApp({
             // The one-time shop setup uses the simple centered card layout.
             case name.startsWith('auth/') || name === 'business/setup':
                 return AuthLayout;
+            // The TV display fills the whole screen.
+            case name === 'public/display':
+                return null;
             // Customer pages: phone-first, no sidebar.
             case name.startsWith('public/'):
                 return PublicLayout;

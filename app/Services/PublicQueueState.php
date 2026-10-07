@@ -64,6 +64,7 @@ class PublicQueueState
      *     counter: string|null,
      *     position: int|null,
      *     wait: array{min: int, max: int}|null,
+     *     past_day: bool,
      *     business: array{id: int, name: string, slug: string}
      * }
      */
@@ -102,6 +103,8 @@ class PublicQueueState
             'counter' => $ticket->status === TicketStatus::Called ? $ticket->counter?->name : null,
             'position' => $position,
             'wait' => $wait,
+            // From a day that has ended: unfinished tickets closed with the queue.
+            'past_day' => $ticket->queue_date->toDateString() < $business->today(),
             'business' => [
                 'id' => $business->id,
                 'name' => $business->name,

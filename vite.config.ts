@@ -28,6 +28,19 @@ export default defineConfig({
             formVariants: true,
         }),
     ]),
+    build: {
+        // Customers' phones and shop TVs can be old: iPhones that stop at
+        // iOS 15 are still common. Newer syntax (e.g. class static blocks,
+        // Safari 16.4+) is rewritten so the pages don't load blank there.
+        target: [
+            'es2020',
+            'safari15',
+            'ios15',
+            'chrome87',
+            'edge88',
+            'firefox78',
+        ],
+    },
     server: {
         watch: {
             ignored: [

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\GoogleController;
+use App\Http\Controllers\Customer\DisplayController;
 use App\Http\Controllers\Customer\JoinController;
 use App\Http\Controllers\Customer\QueueStateController;
 use App\Http\Controllers\Customer\TicketController;
@@ -8,6 +9,8 @@ use App\Http\Controllers\Owner\BusinessSettingsController;
 use App\Http\Controllers\Owner\BusinessSetupController;
 use App\Http\Controllers\Owner\CounterController;
 use App\Http\Controllers\Owner\DashboardController;
+use App\Http\Controllers\Owner\DisplaySettingsController;
+use App\Http\Controllers\Owner\QrPosterController;
 use App\Http\Controllers\Owner\QueueController;
 use App\Http\Controllers\Owner\ServiceController;
 use App\Http\Middleware\EnsureUserHasBusiness;
@@ -27,6 +30,12 @@ Route::post('q/{business:slug}/tickets', [JoinController::class, 'store'])
     ->middleware('throttle:join')
     ->name('queue.tickets.store');
 Route::get('q/{business:slug}/state', QueueStateController::class)->name('queue.state');
+
+// TV display at the shop. The short token is the link's secret (it shows the QR code).
+Route::where(['token' => '[a-z0-9]{12}'])->group(function () {
+    Route::get('tv/{token}', [DisplayController::class, 'show'])->name('display.show');
+    Route::get('tv/{token}/state', [DisplayController::class, 'state'])->name('display.state');
+});
 
 Route::whereUuid('ticket')->group(function () {
     Route::get('t/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
@@ -55,6 +64,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('tickets/{ticket}/recall', [QueueController::class, 'recall'])->name('dashboard.tickets.recall');
         });
         Route::post('queue/toggle', [QueueController::class, 'toggle'])->name('dashboard.queue.toggle');
+
+        Route::get('qr', [QrPosterController::class, 'show'])->name('qr.show');
+        Route::get('display', [DisplaySettingsController::class, 'edit'])->name('display.edit');
+        Route::post('display/reset', [DisplaySettingsController::class, 'reset'])->name('display.reset');
 
         Route::get('business', [BusinessSettingsController::class, 'edit'])->name('business.edit');
         Route::put('business', [BusinessSettingsController::class, 'update'])->name('business.update');

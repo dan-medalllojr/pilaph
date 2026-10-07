@@ -1,6 +1,7 @@
 import { Form, Head } from '@inertiajs/react';
 import {
     BellRing,
+    CalendarX,
     CheckCircle2,
     CircleSlash,
     Clock,
@@ -30,7 +31,8 @@ import { state as ticketStateRoute } from '@/routes/tickets';
 import type { QueueBroadcast, TicketState } from '@/types';
 
 const isActive = (ticket: TicketState) =>
-    ticket.status === 'waiting' || ticket.status === 'called';
+    !ticket.past_day &&
+    (ticket.status === 'waiting' || ticket.status === 'called');
 
 export default function TicketPage({
     ticket: initial,
@@ -120,7 +122,7 @@ export default function TicketPage({
                 recalled={recalledAt !== null && ticket.status === 'called'}
             />
 
-            {ticket.status === 'waiting' && (
+            {isActive(ticket) && ticket.status === 'waiting' && (
                 <>
                     <p className="grid justify-items-center gap-1 text-center text-xs text-muted-foreground">
                         <LiveIndicator live={live} />
@@ -141,6 +143,17 @@ function StatusCard({
     ticket: TicketState;
     recalled: boolean;
 }) {
+    // Still waiting or called when the day ended (the owner may just have
+    // forgotten to press Done), so don't say they left or missed their turn.
+    if (ticket.past_day && ticket.status !== 'done') {
+        return (
+            <Message icon={CalendarX} title="The queue has closed for the day">
+                Thanks for visiting {ticket.business.name}. Scan the QR code at
+                the shop to join again another day.
+            </Message>
+        );
+    }
+
     switch (ticket.status) {
         case 'waiting':
             return (

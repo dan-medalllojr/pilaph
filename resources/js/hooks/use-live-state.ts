@@ -23,6 +23,10 @@ type Options<T> = {
     onEvent?: (message: BroadcastMessage, controls: LiveControls<T>) => void;
     /** Whether the state can still change (e.g. the ticket isn't finished). */
     active?: (state: T) => boolean;
+    /** Also refetch on this interval while live, for screens left on all day. */
+    refreshMs?: number;
+    /** The endpoint answered 404, e.g. a TV display link that was reset. */
+    onGone?: () => void;
 };
 
 /**
@@ -40,16 +44,20 @@ export function useLiveState<T>({
     topics,
     onEvent,
     active = () => true,
+    refreshMs,
+    onGone,
 }: Options<T>): { state: T; live: boolean } {
     const [state, setStateRaw] = useState(initial);
     const latest = useRef(initial);
     const requestSeq = useRef(0);
     const onEventRef = useRef(onEvent);
     const activeRef = useRef(active);
+    const onGoneRef = useRef(onGone);
 
     useEffect(() => {
         onEventRef.current = onEvent;
         activeRef.current = active;
+        onGoneRef.current = onGone;
     });
 
     const setState = useCallback((next: T) => {
@@ -72,6 +80,8 @@ export function useLiveState<T>({
 
             if (response.ok && seq === requestSeq.current) {
                 setState((await response.json()) as T);
+            } else if (response.status === 404) {
+                onGoneRef.current?.();
             }
         } catch {
             // Offline for a moment: the next event, poll or visit tries again.
@@ -114,6 +124,21 @@ export function useLiveState<T>({
 
         return () => window.clearInterval(timer);
     }, [live, refetch]);
+
+    // Screens left on all day: a periodic check in case a message was missed.
+    useEffect(() => {
+        if (!refreshMs) {
+            return;
+        }
+
+        const timer = window.setInterval(() => {
+            if (!document.hidden && activeRef.current(latest.current)) {
+                void refetch();
+            }
+        }, refreshMs);
+
+        return () => window.clearInterval(timer);
+    }, [refreshMs, refetch]);
 
     // Phones drop connections when locked: catch up when the page is shown again.
     useEffect(() => {

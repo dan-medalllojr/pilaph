@@ -17,6 +17,7 @@ Shape of the solution: one Laravel monolith (Inertia + React) + Supabase Postgre
 | Real-time | Supabase Realtime **Broadcast** | Laravel sends events via Supabase's REST broadcast endpoint; React listens with `@supabase/supabase-js` |
 | SMS | Semaphore (PH) | Custom Laravel notification channel; `log` driver for development |
 | Push | Web Push (`laravel-notification-channels/webpush`) | Owner alerts when the PWA is closed |
+| QR codes | `bacon/bacon-qr-code` | SVG QR codes for the poster and TV display (already used by Fortify for two-factor setup) |
 | PWA | `vite-plugin-pwa` | Manifest + service worker, installable owner dashboard |
 | Queue driver | `database` | No Redis needed at this scale |
 | Owner sign-in | Fortify + Laravel Socialite | Email and password, passkeys, two-factor codes, and "Continue with Google". Google keys live in Laravel's `.env`, not in Supabase |
@@ -86,12 +87,12 @@ flowchart LR
 - Every client **refetches state on reconnect and when the tab becomes visible again** (phones drop sockets when locked), with a **random 0–2 second delay** so reconnecting phones don't all hit the server at once.
 - If Realtime fails, clients fall back to polling the state endpoint every 15–30 seconds, and stop polling while the page is hidden.
 - Public state endpoints are **cached for 2–3 seconds** per business, so a burst of requests costs one database query.
-- **Public channels can be written to by anyone** holding the publishable key (it ships in every browser). So a broadcast is never trusted for anything with real impact: news about a customer's own ticket (`ticket:{uuid}`) is confirmed by refetching before it's shown, the join page and dashboard refetch on events, and only the low-risk place-in-line view is computed from the payload (any refresh corrects it). The queue channel never carries ticket UUIDs, since a UUID is its customer's key to the ticket. (Added in phase 6.)
+- **Public channels can be written to by anyone** holding the publishable key (it ships in every browser). So a broadcast is never trusted for anything with real impact: news about a customer's own ticket (`ticket:{uuid}`) is confirmed by refetching before it's shown, the join page, dashboard and TV display refetch on events (a fake message must never reach a screen in the shop), and only the low-risk place-in-line view is computed from the payload (any refresh corrects it). The queue channel never carries ticket UUIDs, since a UUID is its customer's key to the ticket. (Added in phase 6.)
 
 ### Channels and events
 | Channel | Listeners | Events | Payload |
 |---|---|---|---|
-| `queue:{business_id}` | TV display, customer pages, owner dashboard | `ticket.joined`, `ticket.called` (also on Recall, with `recalled: true`), `ticket.updated` (done, no-show, cancelled, removed), `queue.toggled` | `{ ticket: { code, counter, status } \| null, queue: <public snapshot> }`; the snapshot has `waiting_count`, `waiting_codes`, `now_serving`, `average_minutes` per ticket letter and `active_counters`, so pages can work out each place in line and wait (no names, phones or ticket IDs) |
+| `queue:{business_id}` | TV display, customer pages, owner dashboard | `ticket.joined`, `ticket.called` (also on Recall, with `recalled: true`), `ticket.updated` (done, no-show, cancelled, removed), `queue.toggled`, `queue.reset` (a new day: leftover tickets closed and/or the QR code changed) | `{ ticket: { code, counter, status } \| null, queue: <public snapshot> }`; the snapshot has `waiting_count`, `waiting_codes`, `now_serving`, `average_minutes` per ticket letter and `active_counters`, so pages can work out each place in line and wait (no names, phones or ticket IDs) |
 | `ticket:{ticket_uuid}` | One customer's ticket page | `ticket.called` (incl. recall), `ticket.updated` (done, no-show, cancelled) | `{ code, counter, status, recalled? }` |
 
 Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /realtime/v1/api/broadcast` with a `messages` array, from the queued `BroadcastQueueUpdate` job (dispatched after commit; the worker runs with `--sleep=1`). The server key goes in the `apikey` header; a legacy `service_role` JWT also goes in `Authorization: Bearer`, a new secret key (`sb_secret_...`) must not. The browser uses the **publishable key** only. Fallback polling runs every 20 s, only while the live connection is down.
@@ -112,7 +113,8 @@ Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /
 | join_cutoff_time | nullable time; joins close after this time each day |
 | qr_token | string; required in the join URL |
 | rotate_qr_daily | bool, default false; when true, `qr_token` changes every night |
-| qr_token_date | date the current token is valid for |
+| qr_token_date | date the current token is valid for; set to today when daily rotation is turned on, so the code doesn't change mid-day |
+| display_token | 12 characters, no look-alike letters; the secret in the TV display link `/tv/{display_token}`. Separate from `qr_token` (which the display shows) and resettable by the owner |
 | timezone | default `Asia/Manila` |
 
 ### users
@@ -174,7 +176,8 @@ Created by the web push package's migration.
 | POST | `/q/{business:slug}/tickets` | Create ticket, redirect to ticket page (rate-limited) |
 | GET | `/t/{ticket}` | Ticket page: number, position, ETA, live updates |
 | POST | `/t/{ticket}/cancel` | Customer cancels |
-| GET | `/q/{business:slug}/display` | TV "now serving" display |
+| GET | `/tv/{display_token}` | TV "now serving" display. Its own secret link (not `/q/{slug}/display`): the display shows the current QR code, so a guessable address would let anyone join from home. Short enough to type on a TV remote |
+| GET | `/tv/{display_token}/state` | JSON for the display: counters with who they're serving, next 5 codes, waiting count, join QR code (null while joining is closed). No personal data |
 | GET | `/q/{business:slug}/state` | JSON snapshot without personal data (for refetch) |
 | GET | `/t/{ticket}/state` | JSON snapshot for one ticket |
 
@@ -200,7 +203,9 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | resource | `/dashboard/services` | CRUD services |
 | resource | `/dashboard/counters` | CRUD counters |
 | GET | `/dashboard/stats` | Served today/week, average wait, busiest hours |
-| GET | `/dashboard/qr` | Printable QR poster for the join page |
+| GET | `/dashboard/qr` | Printable QR poster for the join page (warns when the QR code changes nightly) |
+| GET | `/dashboard/display` | TV display link, setup steps, reset |
+| POST | `/dashboard/display/reset` | New TV link; screens on the old one show "This TV link no longer works" |
 | POST | `/push-subscriptions` | Save owner's web push subscription |
 
 ---
@@ -239,9 +244,10 @@ The join page shows the current estimated wait **before** joining, so customers 
 - Wait = the average service times of the people ahead (each for their own service, read from the ticket letter) ÷ number of active counters (rounded up, shown as a range like "10–15 min"). Your own service time isn't counted: the wait is until you're called, so next in line sees "Under 5 min", and everyone joining now sees the same wait whatever service they pick. (Changed in phase 4 from "position × average service time", which counted the customer's own service and assumed everyone ahead had the same service.)
 
 ### 4. End of day
-- A scheduled command runs nightly in `Asia/Manila`: mark leftover `waiting` tickets as `cancelled` and leftover `called` tickets as `no_show`.
+- `queue:end-day` runs hourly and, for each business, only touches days that have ended in that business's timezone, so it is safe to repeat and catches up after a missed run. It marks leftover `waiting` tickets as `cancelled` and leftover `called` tickets as `no_show`.
 - Numbering resets automatically because it is keyed on `queue_date`.
 - The same command rotates each business's `qr_token` (only for businesses with daily rotation turned on).
+- It broadcasts `queue.reset` with the closed tickets, so ticket pages and the TV catch up. A ticket from a day that ended says "The queue has closed for the day" rather than "You left" or "You missed your turn" (the owner may simply have forgotten to press Done).
 
 ---
 
@@ -287,7 +293,8 @@ The join page shows the current estimated wait **before** joining, so customers 
 - Policies ensure owners only act on their own business, services, counters, and tickets.
 - Public state endpoints and broadcasts never include names or phone numbers.
 - Rate-limit ticket creation per IP and per phone; add a honeypot field to the join form.
-- When `rotate_qr_daily` is on, the QR token changes every night (scheduled command). Because a printed poster would go stale, the TV display shows the current QR code in that mode; businesses that only use a printed poster keep rotation off.
+- When `rotate_qr_daily` is on, the QR token changes every night (scheduled command). Because a printed poster would go stale, the TV display shows the current QR code (it does in every mode, while joining is open); businesses that only use a printed poster keep rotation off.
+- The TV display link has its own secret token, since the display shows the QR code. The owner can reset it.
 - Supabase service-role key lives only in Laravel's `.env`; the browser gets only the anon key.
 - Google sign-in: accounts are matched by Google ID, then by email. Google has verified the email, so an existing **verified** account with that email is linked; an **unverified** one is refused (whoever created it never proved they own the email, and linking would let them back in with its password). Owners with two-factor codes still enter one after Google.
 - Owners without a password confirm sensitive actions (security settings, deleting the account) with the same Google account instead.
@@ -353,10 +360,10 @@ Keep `.env.example` in sync with this table.
 5. **Owner dashboard**: today view, call next (with counter lock and expected-ticket check), done, no-show, recall, bulk remove, open/pause queue. Mobile-first layout with large tap targets and buttons disabled while processing.
 6. **Real-time**: `SupabaseBroadcaster` service, after-commit broadcasts, React `useQueueChannel` hook, refetch on reconnect and visibility change, polling fallback.
    - Added after phase 6: **Google sign-in** for owners (Socialite), including confirming with Google and setting a first password.
-7. **TV display**: large "now serving" per counter plus the next 5 codes.
+7. **TV display**: large "now serving" per counter plus the next 5 codes, the join QR code, a highlight and optional chime when a number is called (or recalled), full screen and keep-awake. Also done in this phase: the printable QR poster (moved up from phase 10) and the end-of-day command (needed for the nightly QR change).
 8. **SMS**: Semaphore channel, log driver, near/called logic, `sms_logs`.
 9. **PWA + web push**: manifest, service worker, install banner, owner push alerts.
-10. **Stats + QR**: stats page, printable QR poster.
+10. **Stats**: stats page (the QR poster was done in phase 7).
 11. **Demo polish**: seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
 
 ## Tests (Pest)
@@ -371,6 +378,8 @@ Keep `.env.example` in sync with this table.
 - A double "Call next" with a stale `expected_current_ticket_id` is rejected and calls no one.
 - Repeating Done / No-show on the same ticket changes nothing.
 - Public broadcasts and public state endpoints never contain names or phone numbers.
+- The TV display needs its secret link, and a reset link stops working.
+- End of day closes only past days' tickets and rotates the QR code once per day.
 
 ## Coding conventions (for the AI assistant)
 - TypeScript in all React components; shared types in `resources/js/types`.
@@ -394,12 +403,15 @@ app/
 │   ├── BulkRemoveTickets.php
 │   ├── ToggleQueue.php
 │   ├── FindOrCreateGoogleOwner.php  Google sign-in: link by verified email or create
-│   └── RunEndOfDayCleanup.php
+│   ├── ResetDisplayLink.php    new TV display link
+│   └── RunEndOfDayCleanup.php  close past days, rotate daily QR codes
 ├── Services/                   outside systems and shared calculations
 │   ├── SupabaseBroadcaster.php POST to Supabase Realtime
 │   ├── SemaphoreClient.php     Semaphore HTTP API
 │   ├── QueueEstimator.php      wait-time calculation (easy to unit-test)
 │   ├── PublicQueueState.php    cached snapshot without personal data
+│   ├── DisplayState.php        what the TV shows (counters, next codes, join QR)
+│   ├── JoinQrCode.php          join link with QR token, drawn as an SVG
 │   └── OwnerQueueState.php     dashboard view with names (never phones)
 ├── Notifications/
 │   ├── Channels/SemaphoreChannel.php   uses SemaphoreClient (or the log driver)
@@ -412,7 +424,7 @@ app/
 ├── Http/
 │   ├── Controllers/            thin: validate, call one Action, return a response
 │   └── Requests/               Form Requests (JoinQueueRequest, StoreServiceRequest, ...)
-└── Console/Commands/           end-of-day command, scheduled in routes/console.php
+└── Console/Commands/           EndQueueDay (queue:end-day), scheduled hourly in routes/console.php
 ```
 
 | Question | Where it goes |

@@ -28,7 +28,7 @@ class BroadcastQueueUpdate implements ShouldQueue
     public array $backoff = [1, 5];
 
     /**
-     * @param  string  $event  ticket.joined | ticket.called | ticket.updated | queue.toggled
+     * @param  string  $event  ticket.joined | ticket.called | ticket.updated | queue.toggled | queue.reset
      * @param  PublicTicket|null  $subject  The ticket the event is about, as anyone may see it.
      * @param  list<TicketUpdate>  $ticketUpdates  Changed tickets, each also told on its own channel.
      */

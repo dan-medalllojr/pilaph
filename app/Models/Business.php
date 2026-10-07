@@ -22,6 +22,7 @@ use Illuminate\Support\Str;
  * @property string $qr_token
  * @property bool $rotate_qr_daily
  * @property CarbonImmutable $qr_token_date
+ * @property string $display_token
  * @property string $timezone
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
@@ -36,8 +37,9 @@ use Illuminate\Support\Str;
     'rotate_qr_daily',
     'timezone',
 ])]
-// The QR token gates joining; only the owner's QR screen should ever show it.
-#[Hidden(['qr_token'])]
+// The QR token gates joining; only the owner's QR screens and the TV display
+// show it. The display token is the TV link's secret.
+#[Hidden(['qr_token', 'display_token'])]
 class Business extends Model
 {
     /** @use HasFactory<BusinessFactory> */
@@ -48,12 +50,34 @@ class Business extends Model
         static::creating(function (Business $business): void {
             $business->qr_token ??= self::generateQrToken();
             $business->qr_token_date ??= $business->localNow()->startOfDay();
+            $business->display_token ??= self::generateDisplayToken();
+        });
+
+        // Turning on the nightly QR change starts counting from today, so the
+        // code on the TV doesn't change mid-day the next time the job runs.
+        static::saving(function (Business $business): void {
+            if ($business->exists && $business->isDirty('rotate_qr_daily') && $business->rotate_qr_daily) {
+                $business->qr_token_date = $business->localNow()->startOfDay();
+            }
         });
     }
 
     public static function generateQrToken(): string
     {
         return Str::random(32);
+    }
+
+    /**
+     * Short enough to type on a TV remote; no look-alike characters (0/o, 1/l/i).
+     */
+    public static function generateDisplayToken(): string
+    {
+        $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+        return implode('', array_map(
+            fn () => $alphabet[random_int(0, strlen($alphabet) - 1)],
+            range(1, 12),
+        ));
     }
 
     /**

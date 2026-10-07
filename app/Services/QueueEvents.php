@@ -51,6 +51,20 @@ class QueueEvents
     }
 
     /**
+     * A new day: past days' leftover tickets were closed, the QR code
+     * changed, or both. The TV display refetches to show the new QR code.
+     *
+     * @param  list<Ticket>  $closed
+     */
+    public function dayEnded(Business $business, array $closed): void
+    {
+        // Small batches keep each broadcast request small.
+        foreach (array_chunk($closed, 50) ?: [[]] as $batch) {
+            $this->changed($business, 'queue.reset', null, $batch);
+        }
+    }
+
+    /**
      * @param  list<Ticket>  $affected
      */
     private function changed(Business $business, string $event, ?Ticket $subject = null, array $affected = [], bool $recalled = false): void

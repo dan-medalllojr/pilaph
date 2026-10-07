@@ -141,3 +141,43 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* TV display: a newly called number pulses a few times. */
+@keyframes called {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.04);
+    }
+}
+
+/* QR poster page: print only the poster, filling the page. */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 12mm;
+    }
+
+    body:has(#qr-poster) * {
+        visibility: hidden;
+    }
+
+    /* As specific as the rule above (:has() counts the id), so it wins. */
+    body:has(#qr-poster) #qr-poster,
+    body:has(#qr-poster) #qr-poster * {
+        visibility: visible;
+    }
+
+    body:has(#qr-poster) #qr-poster {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}

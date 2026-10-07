@@ -49,6 +49,8 @@ export type TicketState = {
     /** 1 = next in line; null unless waiting. */
     position: number | null;
     wait: WaitRange | null;
+    /** From a day that has ended; unfinished tickets closed with the queue. */
+    past_day: boolean;
     business: { id: number; name: string; slug: string };
 };
 

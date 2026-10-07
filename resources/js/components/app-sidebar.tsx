@@ -1,5 +1,12 @@
 import { Link } from '@inertiajs/react';
-import { Armchair, LayoutGrid, Scissors, Store } from 'lucide-react';
+import {
+    Armchair,
+    LayoutGrid,
+    QrCode,
+    Scissors,
+    Store,
+    Tv,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -15,6 +22,8 @@ import {
 import { dashboard } from '@/routes';
 import { edit as businessSettings } from '@/routes/business';
 import { index as counters } from '@/routes/counters';
+import { edit as tvDisplay } from '@/routes/display';
+import { show as qrPoster } from '@/routes/qr';
 import { index as services } from '@/routes/services';
 import type { NavItem } from '@/types';
 
@@ -33,6 +42,16 @@ const mainNavItems: NavItem[] = [
         title: 'Counters',
         href: counters(),
         icon: Armchair,
+    },
+    {
+        title: 'QR poster',
+        href: qrPoster(),
+        icon: QrCode,
+    },
+    {
+        title: 'TV display',
+        href: tvDisplay(),
+        icon: Tv,
     },
     {
         title: 'Shop settings',
