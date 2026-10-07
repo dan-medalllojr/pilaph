@@ -19,7 +19,23 @@ class SupabaseApi
 
     public function url(string $path): string
     {
-        return rtrim((string) config('services.supabase.url'), '/').'/'.ltrim($path, '/');
+        return $this->baseUrl().'/'.ltrim($path, '/');
+    }
+
+    /**
+     * The project URL, e.g. https://abcd.supabase.co. Supabase's dashboard also
+     * shows it with /rest/v1/ on the end; only the scheme and host are used.
+     */
+    private function baseUrl(): string
+    {
+        $url = (string) config('services.supabase.url');
+        $parts = parse_url($url);
+
+        if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {
+            return rtrim($url, '/');
+        }
+
+        return $parts['scheme'].'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '');
     }
 
     public function request(): PendingRequest

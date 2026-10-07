@@ -6,6 +6,7 @@ use App\Models\Counter;
 use App\Models\Service;
 use App\Models\Ticket;
 use App\Services\PublicQueueState;
+use App\Services\SupabaseApi;
 use App\Services\SupabaseBroadcaster;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
@@ -113,4 +114,11 @@ test('without Supabase configured nothing is sent', function () {
     runBroadcast(new BroadcastQueueUpdate($this->business->id, 'queue.toggled'));
 
     Http::assertNothingSent();
+});
+
+test('a project URL copied with /rest/v1/ on the end still works', function () {
+    config(['services.supabase.url' => 'https://example.supabase.co/rest/v1/']);
+
+    expect(app(SupabaseApi::class)->url('realtime/v1/api/broadcast'))
+        ->toBe('https://example.supabase.co/realtime/v1/api/broadcast');
 });
