@@ -1,28 +1,63 @@
-# Stage 1: Build Frontend & Backend Bundle
-FROM node:22-alpine AS builder
+# One image for production (Railway) and local Docker runs.
+# Web (nginx + PHP-FPM), queue worker and scheduler run together under supervisord.
+
+ARG PHP_VERSION=8.5
+
+# ---------------------------------------------------------------------------
+# Base: PHP-FPM with the extensions Laravel and the app need
+# ---------------------------------------------------------------------------
+FROM php:${PHP_VERSION}-fpm-alpine AS base
+
+COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/local/bin/
+RUN install-php-extensions pdo_pgsql intl bcmath opcache pcntl zip \
+    && apk add --no-cache nginx supervisor
+
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
 WORKDIR /app
 
-ARG VITE_SUPABASE_URL=""
-ARG VITE_SUPABASE_ANON_KEY=""
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+# ---------------------------------------------------------------------------
+# Build: Composer dependencies + Vite assets
+# (the Wayfinder Vite plugin runs `php artisan`, so this stage needs PHP and Node)
+# ---------------------------------------------------------------------------
+FROM base AS build
 
-# Install exactly the versions in package-lock.json
-COPY package.json package-lock.json ./
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN apk add --no-cache nodejs npm
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
+
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN composer dump-autoload --optimize --no-dev
 
-# Stage 2: Production Runtime (Web + Realtime + Scheduled Cleanup)
-FROM node:22-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
+# Vite inlines VITE_* variables at build time, so they must be build arguments.
+# Railway passes service variables to every ARG declared here.
+ARG VITE_APP_NAME=PilaPH
+ARG VITE_SUPABASE_URL=""
+ARG VITE_SUPABASE_ANON_KEY=""
+RUN npm run build && rm -rf node_modules
 
-COPY --from=builder /app ./
-EXPOSE 3000
+# ---------------------------------------------------------------------------
+# Runtime
+# ---------------------------------------------------------------------------
+FROM base AS runtime
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://localhost:3000/up || exit 1
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    LOG_CHANNEL=stderr
 
-CMD ["npx", "tsx", "server.ts"]
+COPY --from=build /app /app
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/supervisord.conf /etc/supervisord.conf
+COPY docker/start.sh /usr/local/bin/start
+RUN chmod +x /usr/local/bin/start \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/up" >/dev/null || exit 1
+
+CMD ["start"]
