@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useLiveState } from '@/hooks/use-live-state';
 import { formatWait, rememberedTicket, uuid } from '@/lib/queue';
+import { state as queueStateRoute } from '@/routes/queue';
 import { show as showTicket, state as ticketState } from '@/routes/tickets';
 import type { JoinClosedReason, PublicQueue, TicketState } from '@/types';
 
@@ -32,7 +34,18 @@ const closedMessages: Record<
         'The queue is full right now. Please try again in a little while.',
 };
 
-export default function Join({ queue, qrToken, existingTicket }: Props) {
+export default function Join({
+    queue: initialQueue,
+    qrToken,
+    existingTicket,
+}: Props) {
+    // On each change, refetch the (cached) public snapshot rather than trusting
+    // the broadcast: anyone can send to a public channel.
+    const { state: queue } = useLiveState({
+        initial: initialQueue,
+        url: queueStateRoute.url(initialQueue.business.slug),
+        topics: (q) => [`queue:${q.business.id}`],
+    });
     const { business } = queue;
     const yourTicket = useYourTicket(business.slug, existingTicket);
     // Generated once: a double tap or slow-network resubmit returns the same ticket.

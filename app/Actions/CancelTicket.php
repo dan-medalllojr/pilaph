@@ -4,11 +4,11 @@ namespace App\Actions;
 
 use App\Enums\TicketStatus;
 use App\Models\Ticket;
-use App\Services\PublicQueueState;
+use App\Services\QueueEvents;
 
 class CancelTicket
 {
-    public function __construct(private PublicQueueState $queueState) {}
+    public function __construct(private QueueEvents $events) {}
 
     /**
      * The customer leaves the queue. Only a waiting ticket can be cancelled;
@@ -25,10 +25,12 @@ class CancelTicket
                 'updated_at' => now(),
             ]);
 
+        $ticket->refresh();
+
         if ($cancelled > 0) {
-            $this->queueState->forget($ticket->business);
+            $this->events->ticketsUpdated($ticket->business, [$ticket]);
         }
 
-        return $ticket->refresh();
+        return $ticket;
     }
 }

@@ -31,6 +31,8 @@ test('customers joining at the same moment never get the same number', function 
                     'DB_CONNECTION' => 'pgsql',
                     'DB_DATABASE' => 'pilaph_test',
                     'CACHE_STORE' => 'array',
+                    // Never broadcast to a real Supabase project from tests.
+                    'SUPABASE_URL' => '',
                 ])
                 ->command([PHP_BINARY, 'tests/Concurrency/join-once.php', (string) $business->id, (string) $service->id, (string) $startAt]);
         }
@@ -59,6 +61,8 @@ test('the queue limit holds when people join different services at once', functi
                     'DB_CONNECTION' => 'pgsql',
                     'DB_DATABASE' => 'pilaph_test',
                     'CACHE_STORE' => 'array',
+                    // Never broadcast to a real Supabase project from tests.
+                    'SUPABASE_URL' => '',
                 ])
                 ->command([PHP_BINARY, 'tests/Concurrency/join-once.php', (string) $business->id, (string) $services[$i % 2]->id, (string) $startAt]);
         }

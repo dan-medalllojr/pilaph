@@ -6,6 +6,8 @@ export type JoinClosedReason = 'paused' | 'after_cutoff' | 'full';
 /** Public queue snapshot: no names or phone numbers, only codes and counts. */
 export type PublicQueue = {
     business: {
+        /** Live updates arrive on the "queue:{id}" channel. */
+        id: number;
         name: string;
         slug: string;
         closed_reason: JoinClosedReason | null;
@@ -47,5 +49,20 @@ export type TicketState = {
     /** 1 = next in line; null unless waiting. */
     position: number | null;
     wait: WaitRange | null;
-    business: { name: string; slug: string };
+    business: { id: number; name: string; slug: string };
+};
+
+/** A ticket as anyone watching the queue may see it (no name, no phone, no ID). */
+export type PublicTicketUpdate = {
+    code: string;
+    counter: string | null;
+    status: TicketStatus;
+    /** Set when the owner taps Recall: the ticket is being called again. */
+    recalled?: true;
+};
+
+/** Payload broadcast on "queue:{business id}". */
+export type QueueBroadcast = {
+    ticket: PublicTicketUpdate | null;
+    queue: PublicQueue;
 };

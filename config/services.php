@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Realtime Broadcast for live queue updates (server side only).
+    // The key may be a secret key (sb_secret_...) or the legacy service_role JWT.
+    'supabase' => [
+        'url' => env('SUPABASE_URL'),
+        'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
+    ],
+
 ];

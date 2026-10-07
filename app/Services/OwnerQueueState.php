@@ -18,7 +18,7 @@ class OwnerQueueState
 {
     /**
      * @return array{
-     *     business: array{name: string, slug: string, is_open: bool, closed_reason: 'paused'|'after_cutoff'|'full'|null, join_cutoff_time: string|null},
+     *     business: array{id: int, name: string, slug: string, is_open: bool, closed_reason: 'paused'|'after_cutoff'|'full'|null, join_cutoff_time: string|null},
      *     counters: list<array{id: int, name: string, current: TicketRow|null}>,
      *     waiting: list<TicketRow>,
      *     stats: array{waiting: int, served: int, no_shows: int, average_wait_minutes: int|null},
@@ -73,6 +73,7 @@ class OwnerQueueState
 
         return [
             'business' => [
+                'id' => $business->id,
                 'name' => $business->name,
                 'slug' => $business->slug,
                 'is_open' => $business->is_open,

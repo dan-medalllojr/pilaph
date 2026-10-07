@@ -6,7 +6,7 @@ import {
     Clock,
     UserX,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import TicketController from '@/actions/App/Http/Controllers/Customer/TicketController';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,17 +18,76 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { useTicketState } from '@/hooks/use-ticket-state';
-import { forgetTicket, formatWait, rememberTicket } from '@/lib/queue';
-import type { TicketState } from '@/types';
+import LiveIndicator from '@/components/live-indicator';
+import { useLiveState } from '@/hooks/use-live-state';
+import {
+    estimateWait,
+    forgetTicket,
+    formatWait,
+    rememberTicket,
+} from '@/lib/queue';
+import { state as ticketStateRoute } from '@/routes/tickets';
+import type { QueueBroadcast, TicketState } from '@/types';
+
+const isActive = (ticket: TicketState) =>
+    ticket.status === 'waiting' || ticket.status === 'called';
 
 export default function TicketPage({
     ticket: initial,
 }: {
     ticket: TicketState;
 }) {
-    const ticket = useTicketState(initial);
-    const active = ticket.status === 'waiting' || ticket.status === 'called';
+    // When the owner taps Recall, show that they're calling again.
+    const [recalledAt, setRecalledAt] = useState<number | null>(null);
+
+    const { state: ticket, live } = useLiveState({
+        initial,
+        url: ticketStateRoute.url(initial.id),
+        active: isActive,
+        topics: (t) => [`queue:${t.business.id}`, `ticket:${t.id}`],
+        onEvent: ({ topic, payload }, { state, setState, refetch }) => {
+            // Anyone can send to a public channel, so news about this ticket
+            // itself is confirmed with the server before it's shown.
+            if (topic.startsWith('ticket:')) {
+                if ((payload as { recalled?: boolean } | null)?.recalled) {
+                    setRecalledAt(Date.now());
+                }
+
+                refetch();
+
+                return;
+            }
+
+            // Queue updates: work out the new place in line locally, so a
+            // single "Call next" doesn't make every waiting phone refetch.
+            const queue = (payload as QueueBroadcast | null)?.queue;
+            if (
+                state.status !== 'waiting' ||
+                !Array.isArray(queue?.waiting_codes)
+            ) {
+                return;
+            }
+
+            const index = queue.waiting_codes.indexOf(state.code);
+            if (index === -1) {
+                // No longer waiting (called or removed): confirm with the server.
+                refetch();
+
+                return;
+            }
+
+            setState({
+                ...state,
+                position: index + 1,
+                wait: estimateWait(
+                    queue.waiting_codes.slice(0, index),
+                    queue.average_minutes,
+                    queue.active_counters,
+                ),
+            });
+        },
+    });
+    const active = isActive(ticket);
 
     // Remember the ticket on this phone while it's active, so the join page
     // can link back to it.
@@ -56,11 +115,15 @@ export default function TicketPage({
                 </p>
             </header>
 
-            <StatusCard ticket={ticket} />
+            <StatusCard
+                ticket={ticket}
+                recalled={recalledAt !== null && ticket.status === 'called'}
+            />
 
             {ticket.status === 'waiting' && (
                 <>
-                    <p className="text-center text-xs text-muted-foreground">
+                    <p className="grid justify-items-center gap-1 text-center text-xs text-muted-foreground">
+                        <LiveIndicator live={live} />
                         Keep this page open or bookmark it. It updates by
                         itself.
                     </p>
@@ -71,7 +134,13 @@ export default function TicketPage({
     );
 }
 
-function StatusCard({ ticket }: { ticket: TicketState }) {
+function StatusCard({
+    ticket,
+    recalled,
+}: {
+    ticket: TicketState;
+    recalled: boolean;
+}) {
     switch (ticket.status) {
         case 'waiting':
             return (
@@ -98,10 +167,14 @@ function StatusCard({ ticket }: { ticket: TicketState }) {
             );
         case 'called':
             return (
-                <div className="grid gap-2 rounded-lg border-2 border-emerald-600 bg-emerald-600/10 p-6 text-center">
+                <div
+                    className={`grid gap-2 rounded-lg border-2 border-emerald-600 bg-emerald-600/10 p-6 text-center ${recalled ? 'animate-pulse' : ''}`}
+                >
                     <BellRing className="mx-auto size-8 text-emerald-600" />
                     <p className="text-xl font-semibold">
-                        It&apos;s your turn!
+                        {recalled
+                            ? 'They’re calling you again!'
+                            : 'It’s your turn!'}
                     </p>
                     <p className="text-base">
                         Please proceed to{' '}

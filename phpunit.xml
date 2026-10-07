@@ -33,6 +33,9 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!-- Live updates off unless a test turns them on (and fakes the HTTP call). -->
+        <env name="SUPABASE_URL" value=""/>
+        <env name="SUPABASE_SERVICE_ROLE_KEY" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

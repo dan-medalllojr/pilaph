@@ -15,6 +15,7 @@ export type OwnerTicket = {
 /** The owner dashboard's view of today's queue. */
 export type OwnerQueue = {
     business: {
+        id: number;
         name: string;
         slug: string;
         is_open: boolean;

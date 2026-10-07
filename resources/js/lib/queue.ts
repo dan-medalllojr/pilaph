@@ -1,5 +1,26 @@
 import type { WaitRange } from '@/types';
 
+/**
+ * Estimated wait for someone behind `codesAhead`. Mirrors
+ * App\Services\QueueEstimator: the service times of the people ahead (each
+ * for their own service, by ticket letter) / active counters, rounded up and
+ * shown as a 5-minute range.
+ */
+export function estimateWait(
+    codesAhead: string[],
+    averageMinutes: Record<string, number>,
+    activeCounters: number,
+): WaitRange {
+    const work = codesAhead.reduce(
+        (sum, code) => sum + (averageMinutes[code.split('-')[0]] ?? 0),
+        0,
+    );
+    const minutes = Math.ceil(work / Math.max(1, activeCounters));
+    const min = Math.floor(minutes / 5) * 5;
+
+    return { min, max: min + 5 };
+}
+
 /** "Under 5 min", "10–15 min". */
 export function formatWait(wait: WaitRange): string {
     return wait.min === 0

@@ -34,6 +34,8 @@ function tapCallNextTogether(array $counterIds): Collection
                     'DB_CONNECTION' => 'pgsql',
                     'DB_DATABASE' => 'pilaph_test',
                     'CACHE_STORE' => 'database',
+                    // Never broadcast to a real Supabase project from tests.
+                    'SUPABASE_URL' => '',
                 ])
                 ->command([PHP_BINARY, 'tests/Concurrency/call-next-once.php', (string) $counterId, (string) $startAt]);
         }

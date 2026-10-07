@@ -15,7 +15,8 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
-import { useNow, usePolledState } from '@/hooks/use-polled-state';
+import LiveIndicator from '@/components/live-indicator';
+import { useLiveState, useNow } from '@/hooks/use-live-state';
 import { dashboard } from '@/routes';
 import { state as dashboardState } from '@/routes/dashboard';
 import { index as counterIndex } from '@/routes/counters';
@@ -23,7 +24,12 @@ import { index as serviceIndex } from '@/routes/services';
 import type { OwnerQueue, OwnerTicket } from '@/types';
 
 export default function Dashboard({ queue: initial }: { queue: OwnerQueue }) {
-    const queue = usePolledState(initial, dashboardState.url());
+    // Any queue change: refetch the full state (with names) from the server.
+    const { state: queue, live } = useLiveState({
+        initial,
+        url: dashboardState.url(),
+        topics: (q) => [`queue:${q.business.id}`],
+    });
     const now = useNow();
     const needsSetup =
         queue.setup.active_services === 0 || queue.setup.active_counters === 0;
@@ -33,7 +39,7 @@ export default function Dashboard({ queue: initial }: { queue: OwnerQueue }) {
             <Head title="Queue" />
 
             <div className="flex w-full max-w-6xl flex-col gap-6 p-4">
-                <QueueHeader queue={queue} />
+                <QueueHeader queue={queue} live={live} />
 
                 {needsSetup && <SetupNotice queue={queue} />}
 
@@ -58,7 +64,7 @@ export default function Dashboard({ queue: initial }: { queue: OwnerQueue }) {
     );
 }
 
-function QueueHeader({ queue }: { queue: OwnerQueue }) {
+function QueueHeader({ queue, live }: { queue: OwnerQueue; live: boolean }) {
     const { business } = queue;
     const status = !business.is_open
         ? 'Paused: new customers can’t join'
@@ -86,6 +92,7 @@ function QueueHeader({ queue }: { queue: OwnerQueue }) {
                     />
                     {status}
                 </p>
+                <LiveIndicator live={live} />
             </div>
 
             <Form {...QueueController.toggle.form()}>

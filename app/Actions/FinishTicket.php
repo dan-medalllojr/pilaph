@@ -4,7 +4,7 @@ namespace App\Actions;
 
 use App\Enums\TicketStatus;
 use App\Models\Ticket;
-use App\Services\PublicQueueState;
+use App\Services\QueueEvents;
 
 /**
  * Marks a called ticket as done or no-show. Only a called ticket can be
@@ -12,7 +12,7 @@ use App\Services\PublicQueueState;
  */
 class FinishTicket
 {
-    public function __construct(private PublicQueueState $queueState) {}
+    public function __construct(private QueueEvents $events) {}
 
     /**
      * @param  TicketStatus::Done|TicketStatus::NoShow  $outcome
@@ -30,7 +30,7 @@ class FinishTicket
             ]);
 
         if ($finished > 0) {
-            $this->queueState->forget($ticket->business);
+            $this->events->ticketsUpdated($ticket->business, [$ticket->refresh()]);
         }
 
         return $finished > 0;

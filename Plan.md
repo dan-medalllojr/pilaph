@@ -85,14 +85,15 @@ flowchart LR
 - Every client **refetches state on reconnect and when the tab becomes visible again** (phones drop sockets when locked), with a **random 0–2 second delay** so reconnecting phones don't all hit the server at once.
 - If Realtime fails, clients fall back to polling the state endpoint every 15–30 seconds, and stop polling while the page is hidden.
 - Public state endpoints are **cached for 2–3 seconds** per business, so a burst of requests costs one database query.
+- **Public channels can be written to by anyone** holding the publishable key (it ships in every browser). So a broadcast is never trusted for anything with real impact: news about a customer's own ticket (`ticket:{uuid}`) is confirmed by refetching before it's shown, the join page and dashboard refetch on events, and only the low-risk place-in-line view is computed from the payload (any refresh corrects it). The queue channel never carries ticket UUIDs, since a UUID is its customer's key to the ticket. (Added in phase 6.)
 
 ### Channels and events
 | Channel | Listeners | Events | Payload |
 |---|---|---|---|
-| `queue:{business_id}` | TV display, customer pages, owner dashboard | `ticket.joined`, `ticket.called`, `ticket.updated`, `queue.toggled` | `{ code, counter, status, waiting_count, waiting_codes, now_serving }` (no names or phones) |
-| `ticket:{ticket_uuid}` | One customer's ticket page | `ticket.called`, `ticket.cancelled` | `{ code, counter, status }` |
+| `queue:{business_id}` | TV display, customer pages, owner dashboard | `ticket.joined`, `ticket.called` (also on Recall, with `recalled: true`), `ticket.updated` (done, no-show, cancelled, removed), `queue.toggled` | `{ ticket: { code, counter, status } \| null, queue: <public snapshot> }`; the snapshot has `waiting_count`, `waiting_codes`, `now_serving`, `average_minutes` per ticket letter and `active_counters`, so pages can work out each place in line and wait (no names, phones or ticket IDs) |
+| `ticket:{ticket_uuid}` | One customer's ticket page | `ticket.called` (incl. recall), `ticket.updated` (done, no-show, cancelled) | `{ code, counter, status, recalled? }` |
 
-Laravel sends broadcasts with a small `SupabaseBroadcaster` service (HTTP POST to the Supabase Realtime broadcast REST endpoint using the service-role key from `.env`). Verify the exact endpoint and payload format against current Supabase docs. The browser uses the **anon key** only.
+Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /realtime/v1/api/broadcast` with a `messages` array, from the queued `BroadcastQueueUpdate` job (dispatched after commit; the worker runs with `--sleep=1`). The server key goes in the `apikey` header; a legacy `service_role` JWT also goes in `Authorization: Bearer`, a new secret key (`sb_secret_...`) must not. The browser uses the **publishable key** only. Fallback polling runs every 20 s, only while the live connection is down.
 
 ---
 

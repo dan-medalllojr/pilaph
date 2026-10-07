@@ -5,7 +5,7 @@ namespace App\Actions;
 use App\Enums\TicketStatus;
 use App\Models\Business;
 use App\Models\Ticket;
-use App\Services\PublicQueueState;
+use App\Services\QueueEvents;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 class CreateTicket
 {
-    public function __construct(private PublicQueueState $queueState) {}
+    public function __construct(private QueueEvents $events) {}
 
     /**
      * Returns the new ticket, or the customer's existing one when this is a
@@ -115,8 +115,10 @@ class CreateTicket
             $ticket = $this->findByIdempotencyKey($business, $idempotencyKey) ?? throw $exception;
         }
 
-        // After commit: customer pages see the new ticket on their next refresh.
-        $this->queueState->forget($business);
+        // After commit, and only for a new ticket (not a repeat or an existing one).
+        if ($ticket->wasRecentlyCreated) {
+            $this->events->ticketJoined($ticket);
+        }
 
         return $ticket;
     }

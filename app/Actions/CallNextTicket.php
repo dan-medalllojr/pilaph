@@ -6,7 +6,7 @@ use App\Enums\TicketStatus;
 use App\Exceptions\QueueConflict;
 use App\Models\Counter;
 use App\Models\Ticket;
-use App\Services\PublicQueueState;
+use App\Services\QueueEvents;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  */
 class CallNextTicket
 {
-    public function __construct(private PublicQueueState $queueState) {}
+    public function __construct(private QueueEvents $events) {}
 
     /**
      * Finishes the counter's current ticket and calls the oldest waiting one.
@@ -89,8 +89,12 @@ class CallNextTicket
             $lock->release();
         }
 
-        // After commit: customer pages and the TV see the change on their next refresh.
-        $this->queueState->forget($business);
+        // After commit: tell the ticket pages, TV display and dashboard.
+        if ($result['called'] !== null) {
+            $this->events->ticketCalled($result['called'], $result['finished']);
+        } elseif ($result['finished'] !== null) {
+            $this->events->ticketsUpdated($business, [$result['finished']]);
+        }
 
         return $result;
     }
