@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\TicketStatus;
 use App\Models\Business;
 use App\Models\Ticket;
+use App\Services\OwnerAlerts;
 use App\Services\QueueEvents;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,10 @@ use Illuminate\Validation\ValidationException;
  */
 class CreateTicket
 {
-    public function __construct(private QueueEvents $events) {}
+    public function __construct(
+        private QueueEvents $events,
+        private OwnerAlerts $alerts,
+    ) {}
 
     /**
      * Returns the new ticket, or the customer's existing one when this is a
@@ -46,8 +50,10 @@ class CreateTicket
             $this->reject('k', 'Scan the QR code at the shop to join the queue.');
         }
 
+        $waitingAfterJoin = 0;
+
         try {
-            $ticket = DB::transaction(function () use ($business, $serviceId, $customerName, $phone, $idempotencyKey, $deviceId): Ticket {
+            $ticket = DB::transaction(function () use ($business, $serviceId, $customerName, $phone, $idempotencyKey, $deviceId, &$waitingAfterJoin): Ticket {
                 // Lock the business row: joins at this shop happen one at a
                 // time, so numbers never collide and the queue limit holds
                 // even when people join different services at once.
@@ -89,6 +95,9 @@ class CreateTicket
                     $this->reject('service_id', 'Please choose one of the services listed.');
                 }
 
+                // Exact under the lock, for the owner's "almost full" alert.
+                $waitingAfterJoin = $waitingCount + 1;
+
                 // 5. Next number for this service today, e.g. A-024.
                 $number = (int) Ticket::query()
                     ->where('service_id', $service->id)
@@ -118,6 +127,7 @@ class CreateTicket
         // After commit, and only for a new ticket (not a repeat or an existing one).
         if ($ticket->wasRecentlyCreated) {
             $this->events->ticketJoined($ticket);
+            $this->alerts->customerJoined($ticket, $waitingAfterJoin);
         }
 
         return $ticket;

@@ -15,6 +15,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
+import AlertsBanner from '@/components/alerts-banner';
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState, useNow } from '@/hooks/use-live-state';
 import { dashboard } from '@/routes';
@@ -42,6 +43,8 @@ export default function Dashboard({ queue: initial }: { queue: OwnerQueue }) {
                 <QueueHeader queue={queue} live={live} />
 
                 {needsSetup && <SetupNotice queue={queue} />}
+
+                <AlertsBanner />
 
                 <Stats queue={queue} />
 

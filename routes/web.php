@@ -10,6 +10,7 @@ use App\Http\Controllers\Owner\BusinessSetupController;
 use App\Http\Controllers\Owner\CounterController;
 use App\Http\Controllers\Owner\DashboardController;
 use App\Http\Controllers\Owner\DisplaySettingsController;
+use App\Http\Controllers\Owner\PushSubscriptionController;
 use App\Http\Controllers\Owner\QrPosterController;
 use App\Http\Controllers\Owner\QueueController;
 use App\Http\Controllers\Owner\ServiceController;
@@ -64,6 +65,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('tickets/{ticket}/recall', [QueueController::class, 'recall'])->name('dashboard.tickets.recall');
         });
         Route::post('queue/toggle', [QueueController::class, 'toggle'])->name('dashboard.queue.toggle');
+
+        // Push alerts on the owner's devices.
+        Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+        Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+        Route::post('push-subscriptions/test', [PushSubscriptionController::class, 'test'])
+            ->middleware('throttle:5,1')
+            ->name('push-subscriptions.test');
 
         Route::get('qr', [QrPosterController::class, 'show'])->name('qr.show');
         Route::get('display', [DisplaySettingsController::class, 'edit'])->name('display.edit');

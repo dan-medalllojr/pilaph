@@ -14,6 +14,8 @@ declare module '@inertiajs/core' {
             auth: Auth;
             business: CurrentBusiness | null;
             sidebarOpen: boolean;
+            /** VAPID public key for push alerts; null for guests. */
+            webPushKey: string | null;
             [key: string]: unknown;
         };
     }

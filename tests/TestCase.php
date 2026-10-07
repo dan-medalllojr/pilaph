@@ -19,6 +19,9 @@ abstract class TestCase extends BaseTestCase
         // Pages render in the browser in tests, even while `composer run dev`
         // has Vite running (Inertia would otherwise ask it to render them).
         config(['inertia.ssr.enabled' => false]);
+
+        // Pages don't need a fresh `npm run build` to render in tests.
+        $this->withoutVite();
     }
 
     protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void

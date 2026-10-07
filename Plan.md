@@ -18,14 +18,14 @@ Shape of the solution: one Laravel monolith (Inertia + React) + Supabase Postgre
 | SMS | Semaphore (PH) | Custom Laravel notification channel; `log` driver for development |
 | Push | Web Push (`laravel-notification-channels/webpush`) | Owner alerts when the PWA is closed |
 | QR codes | `bacon/bacon-qr-code` | SVG QR codes for the poster and TV display (already used by Fortify for two-factor setup) |
-| PWA | `vite-plugin-pwa` | Manifest + service worker, installable owner dashboard |
+| PWA | Hand-written `public/manifest.webmanifest` + `public/sw.js` | Installable owner dashboard; the service worker only shows push alerts (no offline cache, since running a queue needs the network). Replaces `vite-plugin-pwa` (phase 9): simpler, and no bundler compatibility risk |
 | Queue driver | `database` | No Redis needed at this scale |
 | Owner sign-in | Fortify + Laravel Socialite | Email and password, passkeys, two-factor codes, and "Continue with Google". Google keys live in Laravel's `.env`, not in Supabase |
 | Tests | Pest | Feature tests for the core flows |
 | Containers | Docker | One image for local development and production |
 | Hosting | Railway | Deployed from the Dockerfile; usage-based billing with a spending limit |
 
-Not used: NativePHP, Supabase Auth, Laravel Reverb, Redis.
+Not used: NativePHP, Supabase Auth, Laravel Reverb, Redis, `vite-plugin-pwa`.
 
 ---
 
@@ -206,7 +206,10 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | GET | `/dashboard/qr` | Printable QR poster for the join page (warns when the QR code changes nightly) |
 | GET | `/dashboard/display` | TV display link, setup steps, reset |
 | POST | `/dashboard/display/reset` | New TV link; screens on the old one show "This TV link no longer works" |
-| POST | `/push-subscriptions` | Save owner's web push subscription |
+| POST | `/dashboard/push-subscriptions` | Turn alerts on for a device. Only real push services' endpoints are accepted (FCM, Mozilla, Apple, Windows), since the server sends requests to them |
+| DELETE | `/dashboard/push-subscriptions` | Turn alerts off for a device (only the owner's own) |
+| POST | `/dashboard/push-subscriptions/test` | Send a test alert |
+| GET | `/settings/alerts` | Alerts on this device, install the app, which alerts the shop settings allow |
 
 ---
 
@@ -221,7 +224,7 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
    - the waiting count has reached `max_waiting` ("Queue is full, please try again later").
 3. Normalize the phone number. If the same phone **or** the same `device_id` already has an active ticket at this business today, redirect to that ticket instead of creating a new one.
 4. In a DB transaction: lock the service row (`lockForUpdate`), re-check `max_waiting`, compute `max(number) + 1` for `(service_id, queue_date)`, and insert the ticket with `code = prefix-number` (zero-padded to 3 digits).
-5. After commit: broadcast `ticket.joined` on `queue:{business_id}`, and queue a web push to the owner.
+5. After commit: broadcast `ticket.joined` on `queue:{business_id}`, and queue a web push to the owner (plus "almost full" when this join reached that point; the waiting count is taken under the join lock, so it fires exactly once).
 6. Save the ticket UUID in the browser's `localStorage` and redirect to `/t/{uuid}`. If the customer scans the QR code again later, the join page shows "You already have ticket A-024" with a link back.
 
 The join page shows the current estimated wait **before** joining, so customers can decide whether to wait.
@@ -290,9 +293,13 @@ The join page shows the current estimated wait **before** joining, so customers 
 - Messages stay short and in plain English, e.g. "Hi Ana, 2 people ahead of you at Juan's Barbershop (A-024). Please head back now. <ticket link>" and "A-024, please proceed to Chair 2 at Juan's Barbershop."
 
 ## PWA
-- `vite-plugin-pwa` with a manifest (`name`, icons, `start_url: /dashboard`, `display: standalone`).
-- Show an "Install the app to get alerts" banner on the dashboard; on iPhone, web push only works after Add to Home Screen.
-- Web push to the owner for: new customer joined, queue reaches a set length.
+- A manifest (`name`, icons, `start_url: /dashboard`, `display: standalone`) and a small service worker for push alerts, both static files in `public/`. Only owner and sign-in pages link the manifest, so customers and the TV are never offered to install the app.
+- A dashboard banner offers "Turn on alerts" (and "Install app" where the browser allows it) until alerts are on for that device or it's dismissed. On iPhone, web push only works from the Home Screen app on iOS 16.4 or later; the banner and Settings > Alerts explain this. Push also needs https (or localhost).
+- Web push to the owner (all their devices with alerts on), as queued notifications in `App\Notifications\OwnerAlerts`:
+  - **Customer joined**: "A-012 joined" / "Ana, Haircut. 5 waiting." Same tag, so they replace each other instead of piling up.
+  - **Queue almost full**: when the waiting line reaches `max_waiting - max(1, ceil(max_waiting × 10%))` (30 → 27, 10 → 9). Only for shops with a maximum.
+  - **Join cutoff in 30 minutes**: `queue:cutoff-reminders` runs every minute and sends it once a day per shop (a cache key), in the half hour before `join_cutoff_time`, while the queue is open; if the scheduler missed the exact minute it catches up ("in 8 minutes"). Only for shops with a cutoff.
+- Expired subscriptions are deleted when the push service says so.
 - The customer ticket page works in a normal browser; no install needed.
 
 ## Security
@@ -370,7 +377,7 @@ Keep `.env.example` in sync with this table.
 8. **SMS**: Semaphore channel, log driver, near/called logic, `sms_logs`.
 9. **PWA + web push**: manifest, service worker, install banner, owner push alerts.
 10. **Stats**: stats page (the QR poster was done in phase 7).
-11. **Demo polish**: seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
+11. **Demo polish**: shop photo on the join page (from the Node version; needs Supabase Storage, since Railway's disk is wiped on every deploy), seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
 
 ## Tests (Pest)
 - Two simultaneous joins never get the same number.
@@ -419,20 +426,21 @@ app/
 │   ├── DisplayState.php        what the TV shows (counters, next codes, join QR)
 │   ├── JoinQrCode.php          join link with QR token, drawn as an SVG
 │   ├── QueueTexts.php          who gets a text when the queue moves (claims *_sms_sent_at)
-│   └── OwnerQueueState.php     dashboard view with names (never phones)
+│   ├── OwnerQueueState.php     dashboard view with names (never phones)
+│   └── OwnerAlerts.php         which push alerts to send, and when
 ├── Notifications/
 │   ├── Channels/SemaphoreChannel.php   uses SemaphoreClient (or the log driver)
 │   ├── TicketText.php                  base: queued, plain ASCII, 160 characters
 │   ├── TicketNearTurn.php              "2 people ahead of you" SMS
 │   ├── TicketCalled.php                "please proceed to Chair 2" SMS
-│   └── CustomerJoined.php              owner web push
+│   └── OwnerAlerts/                    owner web push: CustomerJoined, QueueAlmostFull, JoinCutoffSoon, TestAlert
 ├── Enums/                      TicketStatus, UserRole, SmsType, SmsStatus
 ├── Models/                     Business, Service, Counter, Ticket, SmsLog
 ├── Policies/                   owners only touch their own business
 ├── Http/
 │   ├── Controllers/            thin: validate, call one Action, return a response
 │   └── Requests/               Form Requests (JoinQueueRequest, StoreServiceRequest, ...)
-└── Console/Commands/           EndQueueDay (queue:end-day), scheduled hourly in routes/console.php
+└── Console/Commands/           EndQueueDay (queue:end-day, hourly), SendCutoffReminders (queue:cutoff-reminders, every minute)
 ```
 
 | Question | Where it goes |

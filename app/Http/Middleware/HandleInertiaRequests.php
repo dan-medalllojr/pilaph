@@ -43,6 +43,8 @@ class HandleInertiaRequests extends Middleware
             ],
             // The signed-in owner's shop, for the sidebar. Never includes the QR token.
             'business' => fn () => $request->user()?->business?->only(['id', 'name', 'slug']),
+            // Public by design: browsers need it to subscribe to push alerts.
+            'webPushKey' => fn () => $request->user() !== null ? config('webpush.vapid.public_key') : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
