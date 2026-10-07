@@ -3,11 +3,14 @@
 namespace App\Providers;
 
 use App\Support\PhilippinePhone;
+use App\Support\SupabaseApiLockdown;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -29,6 +32,18 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureRateLimits();
+        $this->lockDownSupabaseApiAfterMigrations();
+    }
+
+    /**
+     * Tables added by later migrations get row level security and stay out
+     * of Supabase's public REST API too (App\Support\SupabaseApiLockdown).
+     */
+    private function lockDownSupabaseApiAfterMigrations(): void
+    {
+        Event::listen(function (MigrationsEnded $event) {
+            SupabaseApiLockdown::apply(DB::connection());
+        });
     }
 
     /**
