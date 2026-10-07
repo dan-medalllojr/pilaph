@@ -26,19 +26,22 @@ Realtime is on by default; nothing to set up. The app only uses public Broadcast
 
 ## 2. Email (account verification and password reset)
 
-Supabase's own email service isn't used. Pick an SMTP provider, such as [Resend](https://resend.com) or [Brevo](https://www.brevo.com), verify your sending domain there, and set:
+Emails go through [Resend](https://resend.com)'s API (Laravel's built-in `resend` mailer).
+
+1. In Resend, **Domains → Add Domain**, add the DNS records it shows at your domain registrar, and wait for **Verified**. Without a verified domain, Resend only delivers to your own Resend account's inbox, so owners couldn't verify their email.
+2. **API Keys → Create API Key** (sending access is enough).
+3. Set:
 
 ```
-MAIL_MAILER=smtp
-MAIL_HOST=...            # e.g. smtp.resend.com
-MAIL_PORT=587
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
+MAIL_MAILER=resend
+RESEND_API_KEY=re_...
 MAIL_FROM_ADDRESS=no-reply@your-domain
 MAIL_FROM_NAME=PilaPH
 ```
 
-Owners who sign in with Google don't need email verification, but email-and-password sign-ups do.
+No domain yet? Use any SMTP service that lets you send from an address you own, for example Gmail with an app password (`MAIL_MAILER=smtp`, `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, your Gmail address as `MAIL_USERNAME` and `MAIL_FROM_ADDRESS`, the app password as `MAIL_PASSWORD`), and switch to Resend once you have a domain.
+
+Owners who sign in with Google don't need email verification, but email-and-password sign-ups do. After the first deploy, try **Forgot your password?** with your own address to check that email arrives.
 
 ## 3. Railway
 
