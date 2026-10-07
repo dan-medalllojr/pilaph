@@ -14,6 +14,8 @@ declare module '@inertiajs/core' {
             auth: Auth;
             business: CurrentBusiness | null;
             sidebarOpen: boolean;
+            /** The public demo (config/demo.php). */
+            demo: { enabled: boolean; active: boolean };
             /** VAPID public key for push alerts; null for guests. */
             webPushKey: string | null;
             [key: string]: unknown;

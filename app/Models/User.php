@@ -75,6 +75,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return $this->password !== null;
     }
 
+    /**
+     * The public demo's shared account (config/demo.php).
+     */
+    public function isDemo(): bool
+    {
+        return $this->email === config('demo.email');
+    }
+
     public function isOwner(): bool
     {
         return $this->role === UserRole::Owner;

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Download, Share } from 'lucide-react';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ export default function Alerts({
     hasMaxWaiting,
     hasCutoff,
 }: Props) {
+    const { demo } = usePage().props;
     const alerts = usePushAlerts();
     const install = useInstallPrompt();
     const showIosInstall =
@@ -53,12 +54,21 @@ export default function Alerts({
                     description="A notification on this phone or computer, even when PilaPH is closed."
                 />
 
-                <p className="flex items-center gap-2 text-sm">
-                    {alerts.status === 'checking' && <Spinner />}
-                    {statusText[alerts.status]}
-                </p>
+                {demo.active ? (
+                    <p className="text-sm text-muted-foreground">
+                        Alerts aren&apos;t available in the demo, since many
+                        visitors share it. Set up your own shop to get them.
+                    </p>
+                ) : (
+                    <p className="flex items-center gap-2 text-sm">
+                        {alerts.status === 'checking' && <Spinner />}
+                        {statusText[alerts.status]}
+                    </p>
+                )}
 
-                <div className="flex flex-wrap gap-2">
+                <div
+                    className={demo.active ? 'hidden' : 'flex flex-wrap gap-2'}
+                >
                     {alerts.status === 'off' && (
                         <Button
                             onClick={() => void alerts.turnOn()}

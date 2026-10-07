@@ -18,6 +18,7 @@ type Props = {
     /** The scanned QR token, or null when missing or no longer valid. */
     qrToken: string | null;
     existingTicket: { id: string; code: string } | null;
+    photoUrl: string | null;
 };
 
 const closedMessages: Record<
@@ -38,6 +39,7 @@ export default function Join({
     queue: initialQueue,
     qrToken,
     existingTicket,
+    photoUrl,
 }: Props) {
     // On each change, refetch the (cached) public snapshot rather than trusting
     // the broadcast: anyone can send to a public channel.
@@ -54,6 +56,14 @@ export default function Join({
     return (
         <>
             <Head title={`Join the queue at ${business.name}`} />
+
+            {photoUrl && (
+                <img
+                    src={photoUrl}
+                    alt={business.name}
+                    className="-mx-4 -mt-6 aspect-video w-[calc(100%+2rem)] max-w-none object-cover sm:mx-0 sm:mt-0 sm:w-full sm:rounded-xl"
+                />
+            )}
 
             <header className="grid gap-1">
                 <p className="text-sm text-muted-foreground">Virtual queue</p>
@@ -105,7 +115,7 @@ export default function Join({
 function QueueSummary({ queue }: { queue: PublicQueue }) {
     return (
         <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border p-4">
+            <div className="min-w-0 rounded-lg border p-4">
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Users className="size-3.5" /> Waiting now
                 </p>
@@ -117,7 +127,7 @@ function QueueSummary({ queue }: { queue: PublicQueue }) {
                     Wait if you join: {formatWait(queue.wait_if_joining_now)}
                 </p>
             </div>
-            <div className="rounded-lg border p-4">
+            <div className="min-w-0 rounded-lg border p-4">
                 <p className="text-xs text-muted-foreground">Now serving</p>
                 {queue.now_serving.length === 0 ? (
                     <p className="mt-1 text-sm text-muted-foreground">—</p>
@@ -126,12 +136,13 @@ function QueueSummary({ queue }: { queue: PublicQueue }) {
                         {queue.now_serving.map((item) => (
                             <li
                                 key={item.counter}
-                                className="flex justify-between gap-2 text-sm"
+                                className="flex min-w-0 justify-between gap-2 text-sm"
                             >
-                                <span className="truncate text-muted-foreground">
+                                <span className="min-w-0 truncate text-muted-foreground">
                                     {item.counter}
                                 </span>
-                                <span className="font-mono font-semibold">
+                                {/* Never wrap a code ("D-" / "004"); the name gives way. */}
+                                <span className="shrink-0 font-mono font-semibold whitespace-nowrap">
                                     {item.code}
                                 </span>
                             </li>

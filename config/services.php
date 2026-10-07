@@ -40,6 +40,8 @@ return [
     'supabase' => [
         'url' => env('SUPABASE_URL'),
         'service_role_key' => env('SUPABASE_SERVICE_ROLE_KEY'),
+        // A public bucket for shop photos; empty keeps them on the local disk.
+        'storage_bucket' => env('SUPABASE_STORAGE_BUCKET'),
     ],
 
     // Texts to customers. SMS_DRIVER=log writes them to the log instead of

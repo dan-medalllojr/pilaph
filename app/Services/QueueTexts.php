@@ -20,6 +20,11 @@ class QueueTexts
      */
     public function afterCall(Ticket $called): void
     {
+        // Visitors type any number into the public demo: never text them.
+        if ($called->business->is_demo) {
+            return;
+        }
+
         if ($this->claim($called, 'called_sms_sent_at')) {
             $called->notify(new TicketCalled);
         }

@@ -23,6 +23,9 @@ use Illuminate\Support\Str;
  * @property bool $rotate_qr_daily
  * @property CarbonImmutable $qr_token_date
  * @property string $display_token
+ * @property bool $is_demo
+ * @property string|null $photo_path
+ * @property string|null $photo_disk
  * @property string $timezone
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
@@ -165,6 +168,7 @@ class Business extends Model
             'near_threshold' => 'integer',
             'max_waiting' => 'integer',
             'rotate_qr_daily' => 'boolean',
+            'is_demo' => 'boolean',
             'qr_token_date' => 'date',
         ];
     }

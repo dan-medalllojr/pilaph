@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Requests\Owner\UpdateBusinessSettingsRequest;
+use App\Services\ShopPhotos;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -11,7 +12,7 @@ use Inertia\Response;
 
 class BusinessSettingsController extends OwnerController
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request, ShopPhotos $photos): Response
     {
         $business = $this->business($request);
         Gate::authorize('update', $business);
@@ -30,6 +31,7 @@ class BusinessSettingsController extends OwnerController
                 'timezone' => $business->timezone,
             ],
             'joinUrl' => url("/q/{$business->slug}"),
+            'photoUrl' => $photos->url($business),
         ]);
     }
 

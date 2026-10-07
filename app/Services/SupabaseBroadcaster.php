@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Sends Supabase Realtime Broadcast messages from the server (REST API).
@@ -11,10 +10,11 @@ use Illuminate\Support\Facades\Http;
  */
 class SupabaseBroadcaster
 {
+    public function __construct(private SupabaseApi $supabase) {}
+
     public function enabled(): bool
     {
-        return filled(config('services.supabase.url'))
-            && filled(config('services.supabase.service_role_key'));
+        return $this->supabase->configured();
     }
 
     /**
@@ -28,21 +28,9 @@ class SupabaseBroadcaster
             return;
         }
 
-        $url = rtrim((string) config('services.supabase.url'), '/');
-        $key = (string) config('services.supabase.service_role_key');
-
-        $request = Http::acceptJson()
+        $this->supabase->request()
             ->timeout(5)
-            ->withHeaders(['apikey' => $key]);
-
-        // The legacy service_role JWT also goes in the Authorization header;
-        // new secret keys (sb_secret_...) must only be sent as apikey.
-        if (str_starts_with($key, 'eyJ')) {
-            $request = $request->withToken($key);
-        }
-
-        $request
-            ->post("{$url}/realtime/v1/api/broadcast", ['messages' => $messages])
+            ->post($this->supabase->url('realtime/v1/api/broadcast'), ['messages' => $messages])
             ->throw();
     }
 }

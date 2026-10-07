@@ -46,6 +46,8 @@ trait ProfileValidationRules
             $userId === null
                 ? Rule::unique(User::class)
                 : Rule::unique(User::class)->ignore($userId),
+            // Reserved for the public demo's account.
+            Rule::notIn([config('demo.email')]),
         ];
     }
 }

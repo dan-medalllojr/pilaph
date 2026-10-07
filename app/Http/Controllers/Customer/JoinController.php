@@ -8,6 +8,7 @@ use App\Http\Requests\Customer\JoinQueueRequest;
 use App\Models\Business;
 use App\Models\Ticket;
 use App\Services\PublicQueueState;
+use App\Services\ShopPhotos;
 use App\Support\PhilippinePhone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,7 @@ class JoinController extends Controller
 
     private const DEVICE_COOKIE_MINUTES = 60 * 24 * 365 * 2;
 
-    public function show(Request $request, Business $business, PublicQueueState $queueState): Response
+    public function show(Request $request, Business $business, PublicQueueState $queueState, ShopPhotos $photos): Response
     {
         $deviceId = $this->deviceId($request);
         $token = $request->string('k')->value();
@@ -43,6 +44,7 @@ class JoinController extends Controller
             // Echoed back only when valid, so the form can submit it.
             'qrToken' => $token !== '' && hash_equals($business->qr_token, $token) ? $token : null,
             'existingTicket' => $existing?->only(['id', 'code']),
+            'photoUrl' => $photos->url($business),
         ]);
     }
 

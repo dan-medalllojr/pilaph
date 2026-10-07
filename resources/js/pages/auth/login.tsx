@@ -3,6 +3,7 @@ import GoogleSignInButton from '@/components/google-sign-in-button';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
+import TryDemoButton from '@/components/try-demo-button';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -109,6 +110,11 @@ export default function Login({
                     </>
                 )}
             </Form>
+
+            <TryDemoButton
+                label="Just looking? Try the demo"
+                className="mt-4"
+            />
 
             {status && (
                 <div className="mb-4 text-center text-sm font-medium text-green-600">

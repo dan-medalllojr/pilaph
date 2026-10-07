@@ -115,6 +115,8 @@ Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /
 | rotate_qr_daily | bool, default false; when true, `qr_token` changes every night |
 | qr_token_date | date the current token is valid for; set to today when daily rotation is turned on, so the code doesn't change mid-day |
 | display_token | 12 characters, no look-alike letters; the secret in the TV display link `/tv/{display_token}`. Separate from `qr_token` (which the display shows) and resettable by the owner |
+| photo_path, photo_disk | nullable; the shop photo on the join page. `supabase` (public Storage bucket, `SUPABASE_STORAGE_BUCKET`) or `public` (local disk). A new random file name on every upload, so caches never show an old photo |
+| is_demo | bool; the public demo's sample shop (reset hourly, never sends SMS) |
 | timezone | default `Asia/Manila` |
 
 ### users
@@ -330,13 +332,13 @@ The join page shows the current estimated wait **before** joining, so customers 
 - Add a `.dockerignore` (exclude `node_modules`, `vendor`, `.env`, `storage/logs`, `.git`).
 
 ### Local development
-- `docker-compose.yml` with the app image and a local **Postgres** container, so test data stays out of Supabase.
+- `docker-compose.yml` with the app image and a local **Postgres** container, so test data stays out of Supabase. The image uses its own `pilaph_docker` database: its queue worker would otherwise take jobs from `composer run dev` (found in phase 7).
 - Run `npm run dev` on the host for hot reload, or as a separate compose service.
 - Use a separate **Supabase project** for development realtime testing, never the production one.
 
 ### Railway setup
 - **One service** built from the repo's `Dockerfile` (web, worker, and scheduler bundled to keep usage cost low). Split the worker into its own Railway service later if job volume grows.
-- **Pre-deploy command:** `php artisan migrate --force`.
+- Settings live in `railway.json` (config as code): Dockerfile build, **pre-deploy command** `php artisan migrate --force`, health check `/up`, 1 replica, no sleeping, restart on failure. Region, domain, variables and the spending limit are set in the dashboard; `docs/deploy.md` is the step-by-step guide.
 - **Health check path:** `/up` (Laravel's built-in health route).
 - **Region:** pick the one closest to the Philippines that Railway offers.
 - **Keep app sleeping / serverless mode off**, so customers never hit a cold start and the scheduler keeps running.
@@ -354,7 +356,10 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `CACHE_STORE=database` | Supports the atomic locks used by "Call next" |
 | `SESSION_DRIVER=database` | |
 | `LOG_CHANNEL=stderr` | Logs appear in Railway's log viewer |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Server only; used by `SupabaseBroadcaster` |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Server only; used by `SupabaseApi` (Realtime broadcasts, Storage) |
+| `SUPABASE_STORAGE_BUCKET` | Public bucket for shop photos (`shop-photos`); empty keeps them on the local disk |
+| `DEMO_ENABLED` | `true` shows "Try the demo" |
+| `MAIL_*` | SMTP provider (Resend, Brevo, SES) for verification and password-reset emails |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Build arguments for the frontend |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | "Continue with Google" (hidden when empty). In Google Cloud Console, add `<APP_URL>/auth/google/callback` as an authorized redirect URI for every domain |
 | `SMS_DRIVER` | `log` or `semaphore` |
@@ -378,6 +383,7 @@ Keep `.env.example` in sync with this table.
 9. **PWA + web push**: manifest, service worker, install banner, owner push alerts.
 10. **Stats**: stats page (the QR poster was done in phase 7). Charts are plain HTML bars, so no chart library is needed.
 11. **Demo polish**: shop photo on the join page (from the Node version; needs Supabase Storage, since Railway's disk is wiped on every deploy), seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
+    - Done as: a PilaPH landing page (replacing the starter kit's) with real product shots of the demo in device frames (`public/images/landing`, WebP, about 120 KB in all; below-the-fold images load lazily); `ResetDemoShop` builds Juan's Barbershop (4 services, 3 chairs, 14 days of history, 2 being served and 6 waiting) for `db:seed`, `demo:reset` (hourly while `DEMO_ENABLED`) and the first "Try the demo". The demo account has no password (the button is the only way in), its email is reserved, and `ProtectDemoAccount` blocks password, email, two-factor, passkey, account deletion, push alerts and photo uploads; its shop never texts. Photos are shrunk to 1600 px JPEGs in the browser before upload (which also drops their GPS metadata). Deploy: `railway.json`, `docs/deploy.md`, and `laravel` merged into `main` through a pull request.
 
 ## Tests (Pest)
 - Two simultaneous joins never get the same number.

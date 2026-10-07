@@ -5,6 +5,7 @@ use App\Http\Controllers\Customer\DisplayController;
 use App\Http\Controllers\Customer\JoinController;
 use App\Http\Controllers\Customer\QueueStateController;
 use App\Http\Controllers\Customer\TicketController;
+use App\Http\Controllers\DemoController;
 use App\Http\Controllers\Owner\BusinessSettingsController;
 use App\Http\Controllers\Owner\BusinessSetupController;
 use App\Http\Controllers\Owner\CounterController;
@@ -14,11 +15,20 @@ use App\Http\Controllers\Owner\PushSubscriptionController;
 use App\Http\Controllers\Owner\QrPosterController;
 use App\Http\Controllers\Owner\QueueController;
 use App\Http\Controllers\Owner\ServiceController;
+use App\Http\Controllers\Owner\ShopPhotoController;
 use App\Http\Controllers\Owner\StatsController;
 use App\Http\Middleware\EnsureUserHasBusiness;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// "Try the demo" (DEMO_ENABLED): sign in as the sample shop's owner.
+Route::post('demo', [DemoController::class, 'store'])
+    ->middleware(['guest', 'throttle:10,1'])
+    ->name('demo.store');
+Route::post('demo/leave', [DemoController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('demo.destroy');
 
 // "Continue with Google" for owners. Email and password sign-in is Fortify's.
 Route::middleware('throttle:10,1')->group(function () {
@@ -81,6 +91,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('business', [BusinessSettingsController::class, 'edit'])->name('business.edit');
         Route::put('business', [BusinessSettingsController::class, 'update'])->name('business.update');
+        Route::post('business/photo', [ShopPhotoController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('business.photo.store');
+        Route::delete('business/photo', [ShopPhotoController::class, 'destroy'])->name('business.photo.destroy');
 
         Route::resource('services', ServiceController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('counters', CounterController::class)->only(['index', 'store', 'update', 'destroy']);

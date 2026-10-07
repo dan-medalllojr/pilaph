@@ -2,6 +2,7 @@ import { Form, Head } from '@inertiajs/react';
 import BusinessSettingsController from '@/actions/App/Http/Controllers/Owner/BusinessSettingsController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import ShopPhotoField from '@/components/shop-photo-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -13,9 +14,10 @@ import type { BusinessSettings } from '@/types';
 type Props = {
     business: BusinessSettings;
     joinUrl: string;
+    photoUrl: string | null;
 };
 
-export default function ShopSettings({ business, joinUrl }: Props) {
+export default function ShopSettings({ business, joinUrl, photoUrl }: Props) {
     return (
         <>
             <Head title="Shop settings" />
@@ -25,6 +27,9 @@ export default function ShopSettings({ business, joinUrl }: Props) {
                     title="Shop settings"
                     description="How your queue behaves for customers"
                 />
+
+                {/* Its own uploads, outside the settings form below. */}
+                <ShopPhotoField photoUrl={photoUrl} />
 
                 <Form
                     {...BusinessSettingsController.update.form()}

@@ -2,8 +2,12 @@
 #
 #   docker compose up -d postgres   Postgres only; run the app on the host with `composer run dev`
 #   docker compose up -d --build    Postgres + the production image at http://localhost:8101
+#                                   (then once: docker compose exec app php artisan migrate --force)
 #
-# Postgres also gets a `pilaph_test` database for Pest (docker/postgres/).
+# Postgres also gets `pilaph_test` (Pest) and `pilaph_docker` (the image) databases
+# (docker/postgres/). The image runs its own queue worker, so it must not share
+# `pilaph` with `composer run dev`: it would take that app's jobs. On a volume
+# created before pilaph_docker existed: docker compose exec postgres createdb -U pilaph pilaph_docker
 services:
     postgres:
         image: postgres:17-alpine
@@ -24,7 +28,13 @@ services:
             retries: 10
 
     app:
-        build: .
+        build:
+            context: .
+            # Like Railway: the frontend's public Supabase settings are baked in
+            # at build time (taken from .env).
+            args:
+                VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+                VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
         depends_on:
             postgres:
                 condition: service_healthy
@@ -33,7 +43,9 @@ services:
             # Inside the compose network, Postgres is reachable by its service name.
             DB_HOST: postgres
             DB_PORT: 5432
+            DB_DATABASE: pilaph_docker
             APP_URL: http://localhost:8101
+            DEMO_ENABLED: 'true'
             PORT: 8080
         ports:
             - '8101:8080'

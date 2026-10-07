@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Bell, BellOff, Download, Share } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ const DISMISSED_KEY = 'pilaph.alerts-banner-dismissed';
  * turn them on, or what to do first on iPhone or when blocked.
  */
 export default function AlertsBanner() {
+    const { demo } = usePage().props;
     const alerts = usePushAlerts();
     const install = useInstallPrompt();
     const [dismissed, setDismissed] = useState(true);
@@ -35,7 +36,9 @@ export default function AlertsBanner() {
         setDismissed(true);
     };
 
+    // The demo can't turn alerts on (many visitors share it).
     if (
+        demo.active ||
         dismissed ||
         !['off', 'needs-home-screen', 'denied'].includes(alerts.status)
     ) {
