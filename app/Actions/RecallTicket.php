@@ -19,13 +19,18 @@ class RecallTicket
      */
     public function execute(Ticket $ticket): bool
     {
-        $ticket = $ticket->fresh();
+        // Only while still called; the time lets the ticket page notice the
+        // recall even if it misses the live message.
+        $recalled = Ticket::query()
+            ->whereKey($ticket->id)
+            ->where('status', TicketStatus::Called)
+            ->update(['recalled_at' => now(), 'updated_at' => now()]);
 
-        if ($ticket?->status !== TicketStatus::Called) {
+        if ($recalled === 0) {
             return false;
         }
 
-        $this->events->ticketCalled($ticket, recalled: true);
+        $this->events->ticketCalled($ticket->refresh(), recalled: true);
 
         return true;
     }

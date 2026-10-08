@@ -46,6 +46,8 @@ export type TicketState = {
     service: string;
     /** Set while called: where to go. */
     counter: string | null;
+    /** The latest Recall (ISO time) while called; the page rings when it changes. */
+    recalled_at: string | null;
     /** 1 = next in line; null unless waiting. */
     position: number | null;
     wait: WaitRange | null;

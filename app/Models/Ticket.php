@@ -29,6 +29,7 @@ use Illuminate\Support\Str;
  * @property TicketStatus $status
  * @property CarbonImmutable $joined_at
  * @property CarbonImmutable|null $called_at
+ * @property CarbonImmutable|null $recalled_at
  * @property CarbonImmutable|null $completed_at
  * @property CarbonImmutable|null $near_sms_sent_at
  * @property CarbonImmutable|null $called_sms_sent_at
@@ -134,6 +135,7 @@ class Ticket extends Model
             'number' => 'integer',
             'joined_at' => 'datetime',
             'called_at' => 'datetime',
+            'recalled_at' => 'datetime',
             'completed_at' => 'datetime',
             'near_sms_sent_at' => 'datetime',
             'called_sms_sent_at' => 'datetime',

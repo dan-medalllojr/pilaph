@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import { Maximize, Volume2, VolumeX } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveState, useNow } from '@/hooks/use-live-state';
+import { playTones } from '@/lib/chime';
 import type {
     DisplayState,
     JoinClosedReason,
@@ -390,25 +391,10 @@ function useChime(): Chime {
             return;
         }
 
-        const start = ctx.currentTime;
-        [
-            [880, 0],
-            [660, 0.3],
-        ].forEach(([frequency, offset]) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = frequency;
-            gain.gain.setValueAtTime(0.0001, start + offset);
-            gain.gain.exponentialRampToValueAtTime(0.5, start + offset + 0.02);
-            gain.gain.exponentialRampToValueAtTime(
-                0.0001,
-                start + offset + 1.4,
-            );
-            osc.connect(gain).connect(ctx.destination);
-            osc.start(start + offset);
-            osc.stop(start + offset + 1.5);
-        });
+        playTones(ctx, [
+            { frequency: 880, at: 0 },
+            { frequency: 660, at: 0.3 },
+        ]);
     }, []);
 
     // Remembered from last time on this screen (read after the first render,

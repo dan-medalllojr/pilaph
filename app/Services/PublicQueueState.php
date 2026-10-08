@@ -62,6 +62,7 @@ class PublicQueueState
      *     status: string,
      *     service: string,
      *     counter: string|null,
+     *     recalled_at: string|null,
      *     position: int|null,
      *     wait: array{min: int, max: int}|null,
      *     past_day: bool,
@@ -101,6 +102,8 @@ class PublicQueueState
             'status' => $ticket->status->value,
             'service' => $ticket->service->name,
             'counter' => $ticket->status === TicketStatus::Called ? $ticket->counter?->name : null,
+            // The page rings again whenever this changes.
+            'recalled_at' => $ticket->status === TicketStatus::Called ? $ticket->recalled_at?->toIso8601String() : null,
             'position' => $position,
             'wait' => $wait,
             // From a day that has ended: unfinished tickets closed with the queue.

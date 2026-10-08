@@ -1,5 +1,6 @@
 import { Form, Head } from '@inertiajs/react';
 import {
+    BellOff,
     BellRing,
     CalendarX,
     CheckCircle2,
@@ -7,7 +8,7 @@ import {
     Clock,
     UserX,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TicketController from '@/actions/App/Http/Controllers/Customer/TicketController';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +22,8 @@ import {
 } from '@/components/ui/dialog';
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState } from '@/hooks/use-live-state';
+import { useTurnAlert } from '@/hooks/use-turn-alert';
+import type { SoundStatus } from '@/hooks/use-turn-alert';
 import {
     estimateWait,
     forgetTicket,
@@ -40,7 +43,9 @@ export default function TicketPage({
     ticket: TicketState;
 }) {
     // When the owner taps Recall, show that they're calling again.
-    const [recalledAt, setRecalledAt] = useState<number | null>(null);
+    const [recalledAt, setRecalledAt] = useState<number | null>(
+        initial.recalled_at !== null ? Date.now() : null,
+    );
 
     const { state: ticket, live } = useLiveState({
         initial,
@@ -51,11 +56,20 @@ export default function TicketPage({
             // Anyone can send to a public channel, so news about this ticket
             // itself is confirmed with the server before it's shown.
             if (topic.startsWith('ticket:')) {
-                if ((payload as { recalled?: boolean } | null)?.recalled) {
-                    setRecalledAt(Date.now());
-                }
-
                 refetch();
+
+                return;
+            }
+
+            // Called already: a queue event about this ticket (e.g. Recall)
+            // means checking with the server, in case its own message is missed.
+            if (state.status === 'called') {
+                if (
+                    (payload as QueueBroadcast | null)?.ticket?.code ===
+                    state.code
+                ) {
+                    refetch();
+                }
 
                 return;
             }
@@ -90,6 +104,39 @@ export default function TicketPage({
         },
     });
     const active = isActive(ticket);
+    const turnAlert = useTurnAlert();
+    const { alert } = turnAlert;
+
+    // Sound and vibration the moment they're called (not when the page
+    // opens on a ticket that was already called), and again on Recall.
+    const previousStatus = useRef(ticket.status);
+    useEffect(() => {
+        if (
+            previousStatus.current !== 'called' &&
+            ticket.status === 'called' &&
+            !ticket.past_day
+        ) {
+            alert();
+        }
+
+        previousStatus.current = ticket.status;
+    }, [ticket.status, ticket.past_day, alert]);
+
+    // A newer recall time from the server: they're being called again. Found
+    // by any refetch (live event, reconnect or the 20 s fallback check).
+    const previousRecall = useRef(ticket.recalled_at);
+    useEffect(() => {
+        if (
+            ticket.recalled_at !== null &&
+            ticket.recalled_at !== previousRecall.current &&
+            ticket.status === 'called'
+        ) {
+            setRecalledAt(Date.now());
+            alert();
+        }
+
+        previousRecall.current = ticket.recalled_at;
+    }, [ticket.recalled_at, ticket.status, alert]);
 
     // Remember the ticket on this phone while it's active, so the join page
     // can link back to it.
@@ -103,7 +150,13 @@ export default function TicketPage({
 
     return (
         <>
-            <Head title={`${ticket.code} · ${ticket.business.name}`} />
+            <Head
+                title={
+                    ticket.status === 'called' && !ticket.past_day
+                        ? `🔔 Your turn · ${ticket.code}`
+                        : `${ticket.code} · ${ticket.business.name}`
+                }
+            />
 
             <header className="grid gap-1 text-center">
                 <p className="text-sm text-muted-foreground">
@@ -124,6 +177,10 @@ export default function TicketPage({
 
             {isActive(ticket) && ticket.status === 'waiting' && (
                 <>
+                    <SoundNotice
+                        status={turnAlert.status}
+                        onEnable={() => void turnAlert.enable()}
+                    />
                     <p className="grid justify-items-center gap-1 text-center text-xs text-muted-foreground">
                         <LiveIndicator live={live} />
                         Keep this page open or bookmark it. It updates by
@@ -133,6 +190,61 @@ export default function TicketPage({
                 </>
             )}
         </>
+    );
+}
+
+/**
+ * Browsers only allow sound after a tap, and a page can't tell whether the
+ * phone is muted: offer the tap, and remind them about silent mode and volume.
+ */
+function SoundNotice({
+    status,
+    onEnable,
+}: {
+    status: SoundStatus;
+    onEnable: () => void;
+}) {
+    const volumeTip =
+        'Turn off silent mode and turn up your volume so you don’t miss it.';
+
+    if (status === 'on') {
+        return (
+            <p className="flex items-start justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                <BellRing className="mt-px size-3.5 shrink-0" />
+                <span>
+                    We&apos;ll play a sound when it&apos;s your turn.{' '}
+                    {volumeTip}
+                </span>
+            </p>
+        );
+    }
+
+    if (status === 'blocked') {
+        return (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                <BellOff className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                <p>
+                    Sound is blocked in this browser. Allow sound for this site
+                    in your browser settings, then reload this page. Keep
+                    watching this screen in the meantime.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid gap-2 rounded-lg border p-3">
+            <div className="flex items-center gap-3">
+                <BellRing className="size-5 shrink-0 text-muted-foreground" />
+                <p className="flex-1 text-sm">
+                    Want a sound when it&apos;s your turn?
+                </p>
+                <Button size="sm" variant="outline" onClick={onEnable}>
+                    Turn on sound
+                </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{volumeTip}</p>
+        </div>
     );
 }
 
