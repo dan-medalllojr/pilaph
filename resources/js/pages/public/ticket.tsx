@@ -7,7 +7,7 @@ import {
     Clock,
     UserX,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TicketController from '@/actions/App/Http/Controllers/Customer/TicketController';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState } from '@/hooks/use-live-state';
+import { useTurnAlert } from '@/hooks/use-turn-alert';
 import {
     estimateWait,
     forgetTicket,
@@ -90,6 +91,29 @@ export default function TicketPage({
         },
     });
     const active = isActive(ticket);
+    const turnAlert = useTurnAlert();
+    const { alert } = turnAlert;
+
+    // Sound and vibration the moment they're called (not when the page
+    // opens on a ticket that was already called), and again on Recall.
+    const previousStatus = useRef(ticket.status);
+    useEffect(() => {
+        if (
+            previousStatus.current !== 'called' &&
+            ticket.status === 'called' &&
+            !ticket.past_day
+        ) {
+            alert();
+        }
+
+        previousStatus.current = ticket.status;
+    }, [ticket.status, ticket.past_day, alert]);
+
+    useEffect(() => {
+        if (recalledAt !== null) {
+            alert();
+        }
+    }, [recalledAt, alert]);
 
     // Remember the ticket on this phone while it's active, so the join page
     // can link back to it.
@@ -103,7 +127,13 @@ export default function TicketPage({
 
     return (
         <>
-            <Head title={`${ticket.code} · ${ticket.business.name}`} />
+            <Head
+                title={
+                    ticket.status === 'called' && !ticket.past_day
+                        ? `🔔 Your turn · ${ticket.code}`
+                        : `${ticket.code} · ${ticket.business.name}`
+                }
+            />
 
             <header className="grid gap-1 text-center">
                 <p className="text-sm text-muted-foreground">
@@ -124,6 +154,10 @@ export default function TicketPage({
 
             {isActive(ticket) && ticket.status === 'waiting' && (
                 <>
+                    <SoundNotice
+                        ready={turnAlert.ready}
+                        onEnable={() => void turnAlert.enable()}
+                    />
                     <p className="grid justify-items-center gap-1 text-center text-xs text-muted-foreground">
                         <LiveIndicator live={live} />
                         Keep this page open or bookmark it. It updates by
@@ -133,6 +167,37 @@ export default function TicketPage({
                 </>
             )}
         </>
+    );
+}
+
+/** Browsers only allow sound after a tap: offer one if it isn't on yet. */
+function SoundNotice({
+    ready,
+    onEnable,
+}: {
+    ready: boolean;
+    onEnable: () => void;
+}) {
+    if (ready) {
+        return (
+            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                <BellRing className="size-3.5 shrink-0" />
+                We&apos;ll play a sound when it&apos;s your turn. Keep your
+                phone off silent.
+            </p>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-3 rounded-lg border p-3">
+            <BellRing className="size-5 shrink-0 text-muted-foreground" />
+            <p className="flex-1 text-sm">
+                Want a sound when it&apos;s your turn?
+            </p>
+            <Button size="sm" variant="outline" onClick={onEnable}>
+                Turn on sound
+            </Button>
+        </div>
     );
 }
 

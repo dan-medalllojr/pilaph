@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { useLiveState } from '@/hooks/use-live-state';
+import { unlockSound } from '@/lib/chime';
 import { formatWait, rememberedTicket, uuid } from '@/lib/queue';
 import { state as queueStateRoute } from '@/routes/queue';
 import { show as showTicket, state as ticketState } from '@/routes/tickets';
@@ -261,7 +262,14 @@ function JoinForm({
                         </label>
                     </div>
 
-                    <Button type="submit" size="lg" className="w-full">
+                    <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full"
+                        // This tap also lets the ticket page play a sound
+                        // when it's their turn (browsers need a tap first).
+                        onClick={() => void unlockSound()}
+                    >
                         {processing && <Spinner />}
                         Get my ticket
                     </Button>
