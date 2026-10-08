@@ -242,6 +242,15 @@ describe('HitPay\'s webhook', function () {
         'another payment request' => [['id' => 'req-someone-else']],
     ]);
 
+    test('an amount from ₱1,000 up, which HitPay writes with a comma, still matches', function () {
+        $payment = pendingPayment($this->business, Plan::Pro, 12);
+
+        hitPayWebhook($this, hitPayRecord($payment, overrides: ['amount' => '9,588.00']))->assertNoContent();
+
+        expect($payment->fresh()->status)->toBe(PaymentStatus::Paid)
+            ->and($this->business->fresh()->currentPlan())->toBe(Plan::Pro);
+    });
+
     test('payments that aren\'t PilaPH plan payments are ignored', function () {
         hitPayWebhook($this, ['id' => 'req-shop-sale', 'reference_number' => 'ORDER-1001', 'status' => 'completed', 'amount' => '50.00', 'currency' => 'php'])
             ->assertNoContent();
@@ -264,6 +273,16 @@ describe('coming back from HitPay', function () {
         $this->actingAs($this->owner)->get(route('plan.payments.show', $payment).'?reference='.$payment->hitpay_request_id.'&status=completed')
             ->assertRedirect(route('plan.show'))
             ->assertSessionHas('inertia.flash_data.toast', fn ($toast) => $toast['message'] === 'Payment received. Your shop is on Basic until Jan 15, 2027.');
+
+        expect($payment->fresh()->status)->toBe(PaymentStatus::Paid);
+    });
+
+    test('counts a big payment HitPay reports with a thousands comma', function () {
+        $payment = pendingPayment($this->business, Plan::Basic, 12);
+        Http::fake(["api.sandbox.hit-pay.com/v1/payment-requests/{$payment->hitpay_request_id}" => Http::response(hitPayRecord($payment, overrides: ['amount' => '3,588.00']))]);
+
+        $this->actingAs($this->owner)->get(route('plan.payments.show', $payment))
+            ->assertSessionHas('inertia.flash_data.toast', fn ($toast) => $toast['type'] === 'success');
 
         expect($payment->fresh()->status)->toBe(PaymentStatus::Paid);
     });

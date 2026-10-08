@@ -64,7 +64,9 @@ class CompletePlanPayment
      */
     private function matches(PlanPayment $payment, array $request): bool
     {
-        $amount = is_numeric($request['amount'] ?? null) ? number_format((float) $request['amount'], 2, '.', '') : null;
+        // HitPay writes amounts from ₱1,000 up with a thousands comma ("9,588.00").
+        $raw = str_replace(',', '', (string) ($request['amount'] ?? ''));
+        $amount = is_numeric($raw) ? number_format((float) $raw, 2, '.', '') : null;
 
         return ($request['id'] ?? null) === $payment->hitpay_request_id
             && $payment->hitpay_request_id !== null
