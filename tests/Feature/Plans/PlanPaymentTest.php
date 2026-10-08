@@ -8,6 +8,7 @@ use App\Models\PlanPayment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
@@ -229,6 +230,152 @@ test('only HITPAY_SANDBOX=false uses HitPay\'s live API; empty or missing stays 
 ])->after(function () {
     putenv('HITPAY_SANDBOX=true');
     $_ENV['HITPAY_SANDBOX'] = $_SERVER['HITPAY_SANDBOX'] = 'true';
+});
+
+/**
+ * A pretend HitPay that remembers its payment requests: each new one gets its
+ * own ID and checkout page, DELETE cancels a pending one (but not a paid one),
+ * and GET reports its status. $paid lists requests the owner already paid.
+ *
+ * @param  list<string>  $paid
+ */
+function fakeHitPay(array $paid = []): ArrayObject
+{
+    $state = new ArrayObject(['created' => [], 'deleted' => [], 'paid' => $paid]);
+
+    Http::fake(function (Request $request) use ($state) {
+        $url = $request->url();
+        if ($request->method() === 'POST' && $url === HITPAY_CREATE) {
+            $id = 'req-'.(count($state['created']) + 1);
+            $state['created'] = [...$state['created'], ['id' => $id, 'reference' => $request['reference_number'], 'amount' => $request['amount']]];
+
+            return Http::response(['id' => $id, 'url' => "https://securecheckout.sandbox.hit-pay.com/{$id}", 'status' => 'pending'], 201);
+        }
+
+        $id = basename((string) parse_url($url, PHP_URL_PATH));
+        $created = collect($state['created'])->firstWhere('id', $id);
+        $isPaid = in_array($id, $state['paid'], true);
+
+        if ($request->method() === 'DELETE') {
+            if ($isPaid) {
+                return Http::response(['message' => 'A completed payment request cannot be deleted.'], 422);
+            }
+            $state['deleted'] = [...$state['deleted'], $id];
+
+            return Http::response(['message' => 'Deleted']);
+        }
+
+        return Http::response([
+            'id' => $id,
+            'reference_number' => $created['reference'] ?? null,
+            'amount' => $created['amount'] ?? null,
+            'currency' => 'php',
+            'status' => $isPaid ? 'completed' : 'pending',
+            'payments' => $isPaid ? [['id' => "pay-{$id}"]] : [],
+        ]);
+    });
+
+    return $state;
+}
+
+describe('paying only once', function () {
+    test('pressing Pay again for the same choice opens the same checkout', function () {
+        $hitPay = fakeHitPay();
+
+        startPayment($this, 'basic', 3)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-1');
+        // A double tap, the back button, or a second tab.
+        startPayment($this, 'basic', 3)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-1');
+        startPayment($this, 'basic', 3)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-1');
+
+        expect(PlanPayment::count())->toBe(1)
+            ->and($hitPay['created'])->toHaveCount(1)
+            ->and($hitPay['deleted'])->toBe([]);
+    });
+
+    test('choosing something else cancels the unfinished payment at HitPay first', function () {
+        $hitPay = fakeHitPay();
+
+        startPayment($this, 'basic', 3);
+        startPayment($this, 'pro', 1)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-2');
+
+        expect($hitPay['deleted'])->toBe(['req-1'])
+            ->and(PlanPayment::where('hitpay_request_id', 'req-1')->sole()->status)->toBe(PaymentStatus::Cancelled)
+            ->and(PlanPayment::where('hitpay_request_id', 'req-2')->sole()->status)->toBe(PaymentStatus::Pending);
+
+        // The page offers only the new one to continue.
+        $this->actingAs($this->owner->fresh())->get(route('plan.show'))
+            ->assertInertia(fn (Assert $page) => $page->where('pending.checkout_url', 'https://securecheckout.sandbox.hit-pay.com/req-2'));
+    });
+
+    test('after an hour, even the same choice gets a fresh checkout (and the old one is cancelled)', function () {
+        $hitPay = fakeHitPay();
+
+        startPayment($this, 'basic', 1);
+        $this->travel(61)->minutes();
+        startPayment($this, 'basic', 1)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-2');
+
+        expect($hitPay['deleted'])->toBe(['req-1']);
+    });
+
+    test('an unfinished payment that was in fact paid is counted, and no new one starts', function () {
+        $hitPay = fakeHitPay(paid: ['req-1']);
+
+        startPayment($this, 'basic', 3);
+        // HitPay's webhook hasn't arrived yet; the owner tries another choice.
+        startPayment($this, 'pro', 1)->assertSessionHasErrors(['plan' => 'Your earlier payment for Basic, 3 months went through, so your plan is already updated. Check it before paying again.']);
+
+        expect($hitPay['created'])->toHaveCount(1)
+            ->and(PlanPayment::sole()->status)->toBe(PaymentStatus::Paid)
+            ->and($this->business->fresh()->currentPlan())->toBe(Plan::Basic);
+    });
+
+    test('two presses at the same moment: the second waits its turn', function () {
+        $hitPay = fakeHitPay();
+        $lock = Cache::lock("business:{$this->business->id}:plan-payment", 30);
+        $lock->get(); // the first press, still talking to HitPay
+
+        startPayment($this, 'basic', 3)->assertSessionHasErrors(['plan' => 'Still starting your payment. Please wait a moment.']);
+
+        expect($hitPay['created'])->toBe([]);
+        $lock->release();
+        startPayment($this, 'basic', 3)->assertRedirect('https://securecheckout.sandbox.hit-pay.com/req-1');
+    });
+
+    test('a cancelled payment that was paid at that very moment still counts', function () {
+        $payment = pendingPayment($this->business);
+        $payment->update(['status' => PaymentStatus::Cancelled]);
+
+        hitPayWebhook($this, hitPayRecord($payment))->assertNoContent();
+
+        expect($payment->fresh()->status)->toBe(PaymentStatus::Paid)
+            ->and($this->business->fresh()->currentPlan())->toBe(Plan::Basic);
+    });
+
+    test('coming back on a replaced payment\'s link says so, or counts it if it was paid', function () {
+        $hitPay = fakeHitPay();
+        startPayment($this, 'basic', 3);
+        startPayment($this, 'pro', 1);
+        $replaced = PlanPayment::where('hitpay_request_id', 'req-1')->sole();
+
+        // An old tab returns from HitPay without having paid.
+        $this->actingAs($this->owner->fresh())->get(route('plan.payments.show', $replaced))
+            ->assertSessionHas('inertia.flash_data.toast', fn ($toast) => $toast['message'] === 'You started a newer payment, so this one was cancelled.');
+
+        // It was paid just as it was replaced: the money counts.
+        $hitPay['paid'] = ['req-1'];
+        $this->actingAs($this->owner->fresh())->get(route('plan.payments.show', $replaced))
+            ->assertSessionHas('inertia.flash_data.toast', fn ($toast) => $toast['type'] === 'success');
+        expect($replaced->fresh()->status)->toBe(PaymentStatus::Paid);
+    });
+
+    test('a failed notice doesn\'t change a cancelled payment', function () {
+        $payment = pendingPayment($this->business);
+        $payment->update(['status' => PaymentStatus::Cancelled]);
+
+        hitPayWebhook($this, hitPayRecord($payment, 'failed'))->assertNoContent();
+
+        expect($payment->fresh()->status)->toBe(PaymentStatus::Cancelled);
+    });
 });
 
 describe('HitPay\'s webhook', function () {

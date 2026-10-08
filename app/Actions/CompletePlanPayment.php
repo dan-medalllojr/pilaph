@@ -29,6 +29,7 @@ class CompletePlanPayment
         }
 
         if (($request['status'] ?? null) !== 'completed') {
+            // A cancelled one stays cancelled; only an open one becomes failed.
             if (($request['status'] ?? null) === 'failed' && $payment->status === PaymentStatus::Pending) {
                 $payment->update(['status' => PaymentStatus::Failed]);
             }

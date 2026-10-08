@@ -9,4 +9,7 @@ enum PaymentStatus: string
     case Paid = 'paid';
     // HitPay couldn't take it, or couldn't be reached to start it.
     case Failed = 'failed';
+    // Left unfinished, and closed at HitPay when the owner chose something
+    // else. Still counted if it turns out to have been paid.
+    case Cancelled = 'cancelled';
 }

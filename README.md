@@ -81,7 +81,7 @@ Timed jobs (the nightly reset, cutoff reminders, the demo reset, the nightly dat
 composer ci:check
 ```
 
-Formatting, lint, TypeScript, Pint, PHPStan (level 7) and the Pest suite, including the concurrency tests. Tests use the separate `pilaph_test` database and never contact Supabase, Semaphore, Google or push services.
+Formatting, lint, TypeScript, Pint, PHPStan (level 7) and the Pest suite, including the concurrency tests. Things only a person can check (a real HitPay checkout) are in [TEST_CASES.md](TEST_CASES.md). Tests use the separate `pilaph_test` database and never contact Supabase, Semaphore, Google or push services.
 
 ## Deploy
 

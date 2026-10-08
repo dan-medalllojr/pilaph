@@ -46,7 +46,9 @@ class PlanPaymentController extends OwnerController
     {
         abort_unless($payment->business_id === $this->business($request)->id, 404);
 
-        if ($payment->status === PaymentStatus::Pending && $payment->hitpay_request_id !== null && $hitPay->configured()) {
+        // A cancelled one too: it may have been paid at the moment it was replaced.
+        $unpaid = in_array($payment->status, [PaymentStatus::Pending, PaymentStatus::Cancelled], true);
+        if ($unpaid && $payment->hitpay_request_id !== null && $hitPay->configured()) {
             try {
                 $complete->execute($payment, $hitPay->paymentRequest($payment->hitpay_request_id));
             } catch (RequestException|ConnectionException) {
@@ -66,6 +68,7 @@ class PlanPaymentController extends OwnerController
             ],
             PaymentStatus::Failed => ['type' => 'error', 'message' => __("The payment didn't go through. You can try again.")],
             PaymentStatus::Pending => ['type' => 'info', 'message' => __("We haven't received this payment yet. If you paid, it shows here within a few minutes.")],
+            PaymentStatus::Cancelled => ['type' => 'info', 'message' => __('You started a newer payment, so this one was cancelled.')],
         });
 
         return to_route('plan.show');

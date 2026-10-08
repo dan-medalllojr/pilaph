@@ -10,30 +10,120 @@ use App\Models\User;
 use App\Services\HitPay;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
  * The owner chose a plan and how many months: record the payment and start
  * it on HitPay, whose checkout page shows the QR Ph code to scan.
+ *
+ * One open payment per shop at a time, so nobody pays twice by accident:
+ * pressing Pay again for the same choice (a double tap, the back button, a
+ * second tab) returns the same checkout, and choosing something else first
+ * cancels the unfinished one at HitPay, so its QR code can't be paid.
  */
 class StartPlanPayment
 {
+    /** An unfinished payment for the same choice is reused for this long. */
+    private const REUSE_MINUTES = 60;
+
     public function __construct(
         private HitPay $hitPay,
         private ActivatePlan $activate,
+        private CompletePlanPayment $complete,
     ) {}
 
     /**
-     * @throws ValidationException when this plan can't be bought now, or HitPay can't start it.
+     * @throws ValidationException when this plan can't be bought now, HitPay can't start it,
+     *                             or an earlier payment turned out to be paid.
      */
     public function execute(Business $business, User $owner, Plan $plan, int $months): PlanPayment
     {
-        $refusal = $this->activate->refusal($business, $plan, $months);
-        if ($refusal !== null) {
-            throw ValidationException::withMessages(['plan' => $refusal]);
+        // Two presses at the same moment: only one goes through.
+        $lock = Cache::lock("business:{$business->id}:plan-payment", 30);
+        if (! $lock->get()) {
+            throw ValidationException::withMessages(['plan' => 'Still starting your payment. Please wait a moment.']);
         }
 
+        try {
+            $refusal = $this->activate->refusal($business, $plan, $months);
+            if ($refusal !== null) {
+                throw ValidationException::withMessages(['plan' => $refusal]);
+            }
+
+            return $this->sameChoiceStillOpen($business, $plan, $months)
+                ?? $this->start($this->closeOpenPayments($business), $owner, $plan, $months);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * The owner's unfinished payment for exactly this choice, if recent.
+     */
+    private function sameChoiceStillOpen(Business $business, Plan $plan, int $months): ?PlanPayment
+    {
+        return $business->planPayments()
+            ->where('status', PaymentStatus::Pending)
+            ->where('plan', $plan)
+            ->where('months', $months)
+            ->whereNotNull('checkout_url')
+            ->where('created_at', '>=', now()->subMinutes(self::REUSE_MINUTES))
+            ->latest()
+            ->first();
+    }
+
+    /**
+     * Cancels the shop's other unfinished payments at HitPay. One that HitPay
+     * can't cancel because it was paid is counted instead, and no new
+     * payment starts.
+     *
+     * @throws ValidationException when an unfinished payment turned out to be paid.
+     */
+    private function closeOpenPayments(Business $business): Business
+    {
+        $open = $business->planPayments()
+            ->where('status', PaymentStatus::Pending)
+            ->whereNotNull('hitpay_request_id')
+            ->get();
+
+        foreach ($open as $payment) {
+            try {
+                $this->hitPay->deletePaymentRequest((string) $payment->hitpay_request_id);
+                $payment->update(['status' => PaymentStatus::Cancelled]);
+
+                continue;
+            } catch (RequestException|ConnectionException) {
+                // HitPay refused (perhaps it's paid) or can't be reached: ask it.
+            }
+
+            try {
+                $paid = $this->complete->execute($payment, $this->hitPay->paymentRequest((string) $payment->hitpay_request_id));
+            } catch (RequestException|ConnectionException) {
+                $paid = false;
+            }
+
+            if ($paid) {
+                throw ValidationException::withMessages(['plan' => sprintf(
+                    'Your earlier payment for %s, %d %s went through, so your plan is already updated. Check it before paying again.',
+                    $payment->plan->label(),
+                    $payment->months,
+                    $payment->months === 1 ? 'month' : 'months',
+                )]);
+            }
+
+            Log::warning('Could not cancel an unfinished plan payment at HitPay', ['payment' => $payment->id]);
+        }
+
+        return $business;
+    }
+
+    /**
+     * @throws ValidationException when HitPay can't start it.
+     */
+    private function start(Business $business, User $owner, Plan $plan, int $months): PlanPayment
+    {
         $payment = PlanPayment::create([
             'business_id' => $business->id,
             'user_id' => $owner->id,

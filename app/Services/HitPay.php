@@ -57,6 +57,17 @@ class HitPay
     }
 
     /**
+     * Cancels an unpaid payment request, so its QR code can't be paid.
+     *
+     * @throws RequestException when HitPay refuses (e.g. it was already paid).
+     * @throws ConnectionException
+     */
+    public function deletePaymentRequest(string $id): void
+    {
+        $this->request()->delete('/payment-requests/'.rawurlencode($id))->throw();
+    }
+
+    /**
      * Whether a webhook really came from HitPay: its Hitpay-Signature header
      * is the HMAC-SHA256 of the raw body, keyed with the webhook's salt.
      */
