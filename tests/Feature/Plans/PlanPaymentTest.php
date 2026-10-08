@@ -145,6 +145,36 @@ describe('starting a payment', function () {
         Http::assertNothingSent();
     });
 
+    test('a plan can be paid up to 13 months ahead', function () {
+        // Paid until Nov 15, 2026: 12 more months ends Nov 15, 2027 (13 months from now).
+        $this->business->forceFill(['plan' => Plan::Pro, 'plan_expires_at' => now()->addMonth()])->save();
+        hitPayCreates();
+        startPayment($this, 'pro', 12)->assertRedirect(CHECKOUT_URL);
+
+        // Paid until Dec 15, 2026: 12 more months is too far, 6 still fits.
+        $this->business->forceFill(['plan_expires_at' => now()->addMonths(2)])->save();
+        startPayment($this, 'pro', 12)->assertSessionHasErrors(['plan' => "You've already paid until Dec 15, 2026, and a plan can be paid up to 13 months ahead. Choose fewer months."]);
+
+        // Paid until Oct 16, 2027: even 1 more month ends a day past the 13 months.
+        $this->business->forceFill(['plan_expires_at' => now()->addYear()->addDay()])->save();
+        startPayment($this, 'pro', 1)->assertSessionHasErrors(['plan' => "You've already paid until Oct 16, 2027, and a plan can be paid up to 13 months ahead. You can pay again from Oct 16, 2026."]);
+
+        $this->actingAs($this->owner->fresh())->get(route('plan.show'))->assertInertia(fn (Assert $page) => $page
+            ->where('options.4.plan', 'pro')
+            ->where('options.4.months', 1)
+            ->where('options.4.refusal', fn ($refusal) => str_contains($refusal, 'up to 13 months ahead')));
+
+        expect(PlanPayment::count())->toBe(1);
+    });
+
+    test('plan:set has no such limit', function () {
+        $this->business->forceFill(['plan' => Plan::Pro, 'plan_expires_at' => now()->addYears(2)])->save();
+
+        $this->artisan('plan:set', ['shop' => $this->business->slug, 'plan' => 'pro', '--months' => 12])->assertSuccessful();
+
+        expect($this->business->fresh()->plan_expires_at->toDateString())->toBe('2029-10-15');
+    });
+
     test('the demo can\'t buy a plan', function () {
         Http::fake();
         $this->business->forceFill(['is_demo' => true])->save();

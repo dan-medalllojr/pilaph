@@ -208,6 +208,13 @@ function PayOnline({
                                             'flex cursor-pointer items-center justify-center rounded-lg border px-2 py-2 text-sm',
                                             months === choice &&
                                                 'border-emerald-600 bg-emerald-500/5 font-medium dark:border-emerald-500',
+                                            // Can't be paid now (e.g. past 13 months ahead); still choosable, to see why.
+                                            options.find(
+                                                (option) =>
+                                                    option.plan === plan &&
+                                                    option.months === choice,
+                                            )?.refusal &&
+                                                'text-muted-foreground opacity-60',
                                         )}
                                     >
                                         <input

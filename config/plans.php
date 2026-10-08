@@ -59,6 +59,11 @@ return [
     // fee, ₱20, whatever the amount, so longer periods lose less to fees).
     'months' => [1, 3, 6, 12],
 
+    // How far ahead a plan can be paid for online: a year, plus room to renew
+    // for a year during the last month. Limits refunds and old prices.
+    // (`php artisan plan:set` has no limit.)
+    'max_months_ahead' => 13,
+
     // After a paid plan ends, its longer history is kept this many days, so
     // paying late never loses data.
     'grace_days' => 30,

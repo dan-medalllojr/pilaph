@@ -14,7 +14,8 @@ use Illuminate\Support\Str;
 /**
  * For the admin: switch a shop's plan on after a payment made outside the app
  * (or for a shop you don't charge), or end it. Same rules as paying online
- * (ActivatePlan): renewing early adds the months after the current end date.
+ * (ActivatePlan): renewing early adds the months after the current end date,
+ * but with no limit on how far ahead (owners paying online: 13 months).
  */
 #[Signature('plan:set
     {shop : The shop\'s link name (as in /q/...) or its owner\'s email}

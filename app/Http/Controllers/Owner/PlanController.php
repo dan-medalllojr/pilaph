@@ -83,7 +83,7 @@ class PlanController extends OwnerController
                     'months' => (int) $months,
                     'amount' => $plan->price() * (int) $months,
                     'ends_at' => $activate->endsAt($business, $plan, (int) $months)->toIso8601String(),
-                    'refusal' => $activate->refusal($business, $plan),
+                    'refusal' => $activate->refusal($business, $plan, (int) $months),
                 ];
             }
         }

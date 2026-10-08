@@ -29,7 +29,7 @@ class StartPlanPayment
      */
     public function execute(Business $business, User $owner, Plan $plan, int $months): PlanPayment
     {
-        $refusal = $this->activate->refusal($business, $plan);
+        $refusal = $this->activate->refusal($business, $plan, $months);
         if ($refusal !== null) {
             throw ValidationException::withMessages(['plan' => $refusal]);
         }

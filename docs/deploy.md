@@ -121,7 +121,7 @@ php artisan plan:set juans-barbershop pro --forever         # a shop you don't c
 php artisan plan:set juans-barbershop free                  # end a plan or trial now
 ```
 
-`plan:set` is also how you give a shop a free plan, or fix a plan after a refund. Paying again for the same plan before it ends adds the months after the current end date, and upgrading from Basic to Pro turns the unused Basic days into Pro days of the same value. When a plan ends, the shop moves to Free by itself; its older history is kept 30 more days in case they renew.
+Owners can pay up to 13 months ahead (`max_months_ahead` in `config/plans.php`). `plan:set` is also how you give a shop a free plan, go past that limit, or fix a plan after a refund. Paying again for the same plan before it ends adds the months after the current end date, and upgrading from Basic to Pro turns the unused Basic days into Pro days of the same value. When a plan ends, the shop moves to Free by itself; its older history is kept 30 more days in case they renew.
 
 Every night at 3:15 AM, `data:prune` erases customer names and phone numbers a week after their visit and deletes history older than each plan keeps, so the database stays small.
 
