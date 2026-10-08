@@ -1,7 +1,12 @@
 /** Minutes, shown to customers as a range like "10–15 min". */
 export type WaitRange = { min: number; max: number };
 
-export type JoinClosedReason = 'paused' | 'after_cutoff' | 'full';
+export type JoinClosedReason =
+    | 'paused'
+    | 'after_cutoff'
+    /** The shop's plan reached its customers for the month (from the next day). */
+    | 'monthly_limit'
+    | 'full';
 
 /** Public queue snapshot: no names or phone numbers, only codes and counts. */
 export type PublicQueue = {

@@ -20,6 +20,8 @@ type Props = {
     qrToken: string | null;
     existingTicket: { id: string; code: string } | null;
     photoUrl: string | null;
+    /** The shop's plan sends texts (and has some left this month). */
+    textsEnabled: boolean;
 };
 
 const closedMessages: Record<
@@ -32,6 +34,8 @@ const closedMessages: Record<
         cutoff
             ? `The queue closed for today at ${cutoff}.`
             : 'The queue is closed for today.',
+    monthly_limit: () =>
+        'Online joining is closed for now. Please ask the staff.',
     full: () =>
         'The queue is full right now. Please try again in a little while.',
 };
@@ -41,6 +45,7 @@ export default function Join({
     qrToken,
     existingTicket,
     photoUrl,
+    textsEnabled,
 }: Props) {
     // On each change, refetch the (cached) public snapshot rather than trusting
     // the broadcast: anyone can send to a public channel.
@@ -107,6 +112,7 @@ export default function Join({
                     queue={queue}
                     qrToken={qrToken}
                     idempotencyKey={idempotencyKey}
+                    textsEnabled={textsEnabled}
                 />
             ) : null}
         </>
@@ -159,10 +165,12 @@ function JoinForm({
     queue,
     qrToken,
     idempotencyKey,
+    textsEnabled,
 }: {
     queue: PublicQueue;
     qrToken: string;
     idempotencyKey: string;
+    textsEnabled: boolean;
 }) {
     if (queue.services.length === 0) {
         return (
@@ -221,27 +229,29 @@ function JoinForm({
                         <InputError message={errors.customer_name} />
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="phone">
-                            Mobile number{' '}
-                            <span className="font-normal text-muted-foreground">
-                                (optional)
-                            </span>
-                        </Label>
-                        <Input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            inputMode="tel"
-                            autoComplete="tel"
-                            placeholder="0917 123 4567"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            We&apos;ll text you when your turn is near and when
-                            you&apos;re called, so you can wait nearby.
-                        </p>
-                        <InputError message={errors.phone} />
-                    </div>
+                    {textsEnabled && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="phone">
+                                Mobile number{' '}
+                                <span className="font-normal text-muted-foreground">
+                                    (optional)
+                                </span>
+                            </Label>
+                            <Input
+                                id="phone"
+                                name="phone"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                placeholder="0917 123 4567"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                We&apos;ll text you when your turn is near and
+                                when you&apos;re called, so you can wait nearby.
+                            </p>
+                            <InputError message={errors.phone} />
+                        </div>
+                    )}
 
                     <input
                         type="hidden"

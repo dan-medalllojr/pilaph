@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use App\Models\Business;
 use App\Models\Ticket;
 use App\Services\OwnerAlerts;
+use App\Services\PlanUsage;
 use App\Services\QueueEvents;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class CreateTicket
     public function __construct(
         private QueueEvents $events,
         private OwnerAlerts $alerts,
+        private PlanUsage $usage,
     ) {}
 
     /**
@@ -50,10 +52,19 @@ class CreateTicket
             $this->reject('k', 'Scan the QR code at the shop to join the queue.');
         }
 
+        // Counted before the lock: only earlier days count, so it can't
+        // change while today's customers join.
+        $monthlyLimitReached = $this->usage->joinsClosedForMonth($business);
+
+        // No texts on this plan: don't keep a number we'd never use.
+        if ($business->limits()->monthlySms === 0) {
+            $phone = null;
+        }
+
         $waitingAfterJoin = 0;
 
         try {
-            $ticket = DB::transaction(function () use ($business, $serviceId, $customerName, $phone, $idempotencyKey, $deviceId, &$waitingAfterJoin): Ticket {
+            $ticket = DB::transaction(function () use ($business, $serviceId, $customerName, $phone, $idempotencyKey, $deviceId, $monthlyLimitReached, &$waitingAfterJoin): Ticket {
                 // Lock the business row: joins at this shop happen one at a
                 // time, so numbers never collide and the queue limit holds
                 // even when people join different services at once.
@@ -80,9 +91,10 @@ class CreateTicket
                     ->where('status', TicketStatus::Waiting)
                     ->count();
 
-                match ($business->joinClosedReason($waitingCount)) {
+                match ($business->joinClosedReason($waitingCount, $monthlyLimitReached)) {
                     'paused' => $this->reject('queue', 'The queue is paused right now. Please check again in a little while.'),
                     'after_cutoff' => $this->reject('queue', 'The queue is closed for today.'),
+                    'monthly_limit' => $this->reject('queue', 'Online joining is closed for now. Please ask the staff.'),
                     'full' => $this->reject('queue', 'The queue is full right now. Please try again in a little while.'),
                     null => null,
                 };

@@ -21,6 +21,7 @@ class TicketController extends Controller
     {
         return Inertia::render('public/ticket', [
             'ticket' => $queueState->forTicket($ticket),
+            'branding' => $ticket->business->limits()->branding,
         ]);
     }
 

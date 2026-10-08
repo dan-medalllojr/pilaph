@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import {
     Armchair,
     ChartColumnBig,
+    CreditCard,
     LayoutGrid,
     QrCode,
     Scissors,
@@ -24,6 +25,7 @@ import { dashboard } from '@/routes';
 import { edit as businessSettings } from '@/routes/business';
 import { index as counters } from '@/routes/counters';
 import { edit as tvDisplay } from '@/routes/display';
+import { show as planShow } from '@/routes/plan';
 import { show as qrPoster } from '@/routes/qr';
 import { show as stats } from '@/routes/stats';
 import { index as services } from '@/routes/services';
@@ -64,6 +66,11 @@ const mainNavItems: NavItem[] = [
         title: 'Shop settings',
         href: businessSettings(),
         icon: Store,
+    },
+    {
+        title: 'Plan & billing',
+        href: planShow(),
+        icon: CreditCard,
     },
 ];
 

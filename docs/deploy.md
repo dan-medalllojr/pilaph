@@ -59,27 +59,29 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 
 ## 4. Variables
 
-| Variable                                                                        | Value                                                                                                                                         |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `APP_NAME`                                                                      | `PilaPH`                                                                                                                                      |
-| `APP_ENV`                                                                       | `production`                                                                                                                                  |
-| `APP_DEBUG`                                                                     | `false`                                                                                                                                       |
-| `APP_KEY`                                                                       | Run `php artisan key:generate --show` locally and paste the result                                                                            |
-| `APP_URL`                                                                       | `https://your-domain` (no trailing slash)                                                                                                     |
-| `APP_TIMEZONE`                                                                  | `Asia/Manila`                                                                                                                                 |
-| `LOG_CHANNEL`                                                                   | `stderr` (logs show in Railway)                                                                                                               |
-| `DB_CONNECTION`                                                                 | `pgsql`                                                                                                                                       |
-| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE` | From step 1                                                                                                                                   |
-| `QUEUE_CONNECTION`, `CACHE_STORE`, `SESSION_DRIVER`                             | `database`                                                                                                                                    |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`          | From step 1                                                                                                                                   |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`                                   | From step 1. Built into the frontend, so **redeploy after changing them**                                                                     |
-| `MAIL_*`                                                                        | From step 2                                                                                                                                   |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                      | Same OAuth client as development. In Google Cloud Console, add `https://your-domain/auth/google/callback` to its **Authorized redirect URIs** |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                        | Copy from your local `.env`. **Never change them later:** new keys silently turn off every owner's push alerts                                |
-| `SMS_DRIVER`                                                                    | `log` until you have Semaphore, then `semaphore`                                                                                              |
-| `SEMAPHORE_API_KEY`                                                             | semaphore.co → Account → API                                                                                                                  |
-| `SEMAPHORE_SENDER_NAME`                                                         | Empty until Semaphore approves your sender name (an unapproved name makes every text fail)                                                    |
-| `DEMO_ENABLED`                                                                  | `true` for the public "Try the demo" button                                                                                                   |
+| Variable                                                                        | Value                                                                                                                                               |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_NAME`                                                                      | `PilaPH`                                                                                                                                            |
+| `APP_ENV`                                                                       | `production`                                                                                                                                        |
+| `APP_DEBUG`                                                                     | `false`                                                                                                                                             |
+| `APP_KEY`                                                                       | Run `php artisan key:generate --show` locally and paste the result                                                                                  |
+| `APP_URL`                                                                       | `https://your-domain` (no trailing slash)                                                                                                           |
+| `APP_TIMEZONE`                                                                  | `Asia/Manila`                                                                                                                                       |
+| `LOG_CHANNEL`                                                                   | `stderr` (logs show in Railway)                                                                                                                     |
+| `DB_CONNECTION`                                                                 | `pgsql`                                                                                                                                             |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE` | From step 1                                                                                                                                         |
+| `QUEUE_CONNECTION`, `CACHE_STORE`, `SESSION_DRIVER`                             | `database`                                                                                                                                          |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`          | From step 1                                                                                                                                         |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`                                   | From step 1. Built into the frontend, so **redeploy after changing them**                                                                           |
+| `MAIL_*`                                                                        | From step 2                                                                                                                                         |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                      | Same OAuth client as development. In Google Cloud Console, add `https://your-domain/auth/google/callback` to its **Authorized redirect URIs**       |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                        | Copy from your local `.env`. **Never change them later:** new keys silently turn off every owner's push alerts                                      |
+| `SMS_DRIVER`                                                                    | `log` until you have Semaphore, then `semaphore`                                                                                                    |
+| `SEMAPHORE_API_KEY`                                                             | semaphore.co → Account → API                                                                                                                        |
+| `SEMAPHORE_SENDER_NAME`                                                         | Empty until Semaphore approves your sender name (an unapproved name makes every text fail)                                                          |
+| `DEMO_ENABLED`                                                                  | `true` for the public "Try the demo" button                                                                                                         |
+| `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`           | Where owners pay for a plan, shown on Plan & billing. Leave empty what you don't use                                                                |
+| `PAYMENT_CONTACT`                                                               | Where owners send the receipt screenshot: an email address or a link (e.g. your Facebook page). All payment variables empty: "Paid plans open soon" |
 
 ## 5. After the first deploy
 
@@ -88,6 +90,21 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 - With the demo on, run the demo reset once from Railway's shell or wait for the hour: `php artisan demo:reset`. "Try the demo" also builds it on first use.
 - Turn on push alerts on your phone (Settings → Alerts; on iPhone, from the Home Screen app on iOS 16.4 or later).
 - Print the QR poster, or open the TV link on the shop's TV.
+
+## Plans and payments
+
+Prices and limits are in `config/plans.php`. Owners pay by GCash or Maya with their shop's link name in the message, then send you the receipt. Check the payment, then in Railway's shell (or from your computer with the production settings):
+
+```bash
+php artisan plan:list                                       # every shop: plan, end date, customers and texts this month
+php artisan plan:set juans-barbershop basic --months=1      # by link name or the owner's email
+php artisan plan:set juans-barbershop pro --forever         # a shop you don't charge
+php artisan plan:set juans-barbershop free                  # end a plan or trial now
+```
+
+Paying again for the same plan before it ends adds the months after the current end date. When a plan ends, the shop moves to Free by itself; its older history is kept 30 more days in case they renew.
+
+Every night at 3:15 AM, `data:prune` erases customer names and phone numbers a week after their visit and deletes history older than each plan keeps, so the database stays small.
 
 ## Updating
 

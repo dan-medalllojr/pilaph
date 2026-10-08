@@ -6,6 +6,8 @@ use App\Enums\TicketStatus;
 use App\Models\Business;
 use App\Models\Counter;
 use App\Models\Service;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -25,15 +27,28 @@ use Illuminate\Support\Facades\DB;
  *     average_wait_minutes: int|null,
  *     average_service_minutes: int|null,
  *     busiest_hours: list<array{hour: int, joined: int}>,
- *     served_per_day: list<array{date: string, served: int}>,
+ *     served_over_time: array{bucket: 'day'|'week'|'month', points: list<array{date: string, served: int}>},
  *     by_service: list<array{name: string, prefix: string, served: int, average_service_minutes: int|null}>,
  *     by_counter: list<array{name: string, served: int}>
  * }
  */
 class ShopStats
 {
-    /** The periods the stats page offers, in days (1 = today). */
-    public const PERIODS = [1, 7, 30];
+    /**
+     * The periods the stats page offers, in days (1 = today). Each plan
+     * shows those within its history (config/plans.php).
+     */
+    public const PERIODS = [1, 7, 30, 90, 180, 365];
+
+    /**
+     * @return list<array{days: int, allowed: bool}>
+     */
+    public function periodsFor(Business $business): array
+    {
+        $history = $business->limits()->historyDays;
+
+        return array_map(fn (int $days) => ['days' => $days, 'allowed' => $days <= $history], self::PERIODS);
+    }
 
     /**
      * @return Stats
@@ -77,7 +92,7 @@ class ShopStats
             'average_wait_minutes' => self::minutes($averageWait),
             'average_service_minutes' => self::minutes($averageService),
             'busiest_hours' => $this->busiestHours($business, $tickets()),
-            'served_per_day' => $this->servedPerDay($tickets(), $from->toDateString(), $to->toDateString()),
+            'served_over_time' => $this->servedOverTime($tickets(), $from, $to, $days),
             'by_service' => $this->byService($business, $tickets()),
             'by_counter' => $this->byCounter($business, $tickets()),
         ];
@@ -111,24 +126,35 @@ class ShopStats
     }
 
     /**
-     * @return list<array{date: string, served: int}>
+     * Customers served per day, or per week or month over longer periods, so
+     * the chart stays readable. Every day, week or month is listed, even
+     * without customers; each point's date is the first day it covers.
+     *
+     * @return array{bucket: 'day'|'week'|'month', points: list<array{date: string, served: int}>}
      */
-    private function servedPerDay(Builder $tickets, string $from, string $to): array
+    private function servedOverTime(Builder $tickets, CarbonImmutable $from, CarbonImmutable $to, int $days): array
     {
-        $perDay = $tickets
-            ->where('status', TicketStatus::Done)
-            ->select('queue_date', DB::raw('count(*) as served'))
-            ->groupBy('queue_date')
-            ->pluck('served', 'queue_date')
-            ->mapWithKeys(fn ($served, $date) => [substr((string) $date, 0, 10) => (int) $served]);
+        [$bucket, $start, $step] = match (true) {
+            $days <= 31 => ['day', $from, '1 day'],
+            // Postgres weeks start on Monday.
+            $days <= 180 => ['week', $from->startOfWeek(CarbonInterface::MONDAY), '1 week'],
+            default => ['month', $from->startOfMonth(), '1 month'],
+        };
 
-        $days = [];
-        foreach (CarbonPeriod::create($from, $to) as $day) {
-            $date = $day->toDateString();
-            $days[] = ['date' => $date, 'served' => $perDay[$date] ?? 0];
+        $served = $tickets
+            ->where('status', TicketStatus::Done)
+            ->selectRaw("date_trunc('{$bucket}', queue_date)::date as bucket, count(*) as served")
+            ->groupBy('bucket')
+            ->pluck('served', 'bucket')
+            ->mapWithKeys(fn ($count, $date) => [substr((string) $date, 0, 10) => (int) $count]);
+
+        $points = [];
+        foreach (CarbonPeriod::create($start, $step, $to) as $point) {
+            $date = $point->toDateString();
+            $points[] = ['date' => $date, 'served' => $served[$date] ?? 0];
         }
 
-        return $days;
+        return ['bucket' => $bucket, 'points' => $points];
     }
 
     /**

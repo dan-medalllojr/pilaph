@@ -11,9 +11,12 @@ use App\Notifications\TicketNearTurn;
  * Decides who gets a text when the queue moves (Plan.md, "Call next" step 6).
  * At most one "near" and one "called" text per ticket: each is claimed in
  * its *_sms_sent_at column before it's queued, so repeats send nothing.
+ * Texts stop once the shop's plan has used its texts for the month.
  */
 class QueueTexts
 {
+    public function __construct(private PlanUsage $usage) {}
+
     /**
      * After a counter called someone: tell them, and give everyone now
      * within the shop's near-turn position a heads-up.
@@ -25,11 +28,20 @@ class QueueTexts
             return;
         }
 
-        if ($this->claim($called, 'called_sms_sent_at')) {
-            $called->notify(new TicketCalled);
+        $business = $called->business;
+
+        // Two counters calling at once can each see the last text left and
+        // go one over; the quota is a soft one.
+        $textsLeft = $this->usage->textsLeft($business);
+        if ($textsLeft === 0) {
+            return;
         }
 
-        $business = $called->business;
+        // The called customer first: that text matters most.
+        if ($this->claim($called, 'called_sms_sent_at')) {
+            $called->notify(new TicketCalled);
+            $textsLeft--;
+        }
 
         // Everyone within the position, not just the one exactly at it:
         // two counters calling at once can move the queue past it.
@@ -43,8 +55,9 @@ class QueueTexts
             ->get();
 
         foreach ($nearFront->values() as $peopleAhead => $ticket) {
-            if ($this->claim($ticket, 'near_sms_sent_at')) {
+            if ($textsLeft > 0 && $this->claim($ticket, 'near_sms_sent_at')) {
                 $ticket->notify(new TicketNearTurn($peopleAhead));
+                $textsLeft--;
             }
         }
     }

@@ -12,7 +12,7 @@ use App\Models\Counter;
  * contains the shop's current QR token. No names or phone numbers.
  *
  * @phpstan-type Display array{
- *     business: array{id: int, name: string, closed_reason: 'paused'|'after_cutoff'|'full'|null},
+ *     business: array{id: int, name: string, closed_reason: 'paused'|'after_cutoff'|'monthly_limit'|'full'|null},
  *     counters: list<array{name: string, code: string|null}>,
  *     next_codes: list<string>,
  *     waiting_count: int,

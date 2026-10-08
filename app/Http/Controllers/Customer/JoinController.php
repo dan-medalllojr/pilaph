@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Customer\JoinQueueRequest;
 use App\Models\Business;
 use App\Models\Ticket;
+use App\Services\PlanUsage;
 use App\Services\PublicQueueState;
 use App\Services\ShopPhotos;
 use App\Support\PhilippinePhone;
@@ -27,7 +28,7 @@ class JoinController extends Controller
 
     private const DEVICE_COOKIE_MINUTES = 60 * 24 * 365 * 2;
 
-    public function show(Request $request, Business $business, PublicQueueState $queueState, ShopPhotos $photos): Response
+    public function show(Request $request, Business $business, PublicQueueState $queueState, ShopPhotos $photos, PlanUsage $usage): Response
     {
         $deviceId = $this->deviceId($request);
         $token = $request->string('k')->value();
@@ -44,7 +45,11 @@ class JoinController extends Controller
             // Echoed back only when valid, so the form can submit it.
             'qrToken' => $token !== '' && hash_equals($business->qr_token, $token) ? $token : null,
             'existingTicket' => $existing?->only(['id', 'code']),
-            'photoUrl' => $photos->url($business),
+            // Kept when a paid plan ends, but shown again only after renewing.
+            'photoUrl' => $business->limits()->photo ? $photos->url($business) : null,
+            // No texts on the shop's plan (or none left this month): no phone field.
+            'textsEnabled' => $usage->textsLeft($business) > 0,
+            'branding' => $business->limits()->branding,
         ]);
     }
 

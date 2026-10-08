@@ -18,7 +18,7 @@ Customers scan a QR code, pick a service and get a ticket number on their phone.
 
 - Scan the shop's QR code, choose a service, get a number like `A-024`.
 - See their place in line and the estimated wait, live.
-- An SMS when they're near the front and when they're called (optional phone number).
+- An SMS when they're near the front and when they're called (optional phone number; Basic and Pro plans).
 
 **For the owner** (installable as an app)
 
@@ -33,6 +33,18 @@ Customers scan a QR code, pick a service and get a ticket number on their phone.
 - Two customers joining at the same moment never get the same number; two counters calling at once never get the same customer; a double-tapped "Call next" calls one person. Tested with real parallel processes.
 - No names or phone numbers in anything public (broadcasts, the TV, the join page).
 - Works on older phones (iOS 15 and up).
+
+**Plans** (prices and limits in [config/plans.php](config/plans.php))
+
+|                            | Free    | Basic ₱299/mo | Pro ₱799/mo |
+| -------------------------- | ------- | ------------- | ----------- |
+| Counters                   | 1       | 3             | no limit    |
+| Customers a month          | 300     | no limit      | no limit    |
+| SMS a month                | none    | 300           | 1,000       |
+| Stats history              | 30 days | 6 months      | 12 months   |
+| Shop photo, no PilaPH name | no      | yes           | yes         |
+
+New shops get 14 days of Pro. A Free shop's queue is never cut off mid-day: past 300 customers, joining closes from the next day. Customer names and phone numbers are erased a week after their visit, and history older than the plan keeps is deleted, every night (`php artisan data:prune`). Owners pay by GCash or Maya for now; `php artisan plan:set` switches the plan on, and `php artisan plan:list` shows every shop's plan.
 
 Try it: the landing page's **Try the demo** button signs you in to a sample barbershop that starts fresh every hour.
 
@@ -61,7 +73,7 @@ Open **http://localhost:8100** (use `localhost`, not `127.0.0.1`: Google sign-in
 
 Without any keys the app still works: texts go to the log (`SMS_DRIVER=log`), pages check for changes every 20 seconds instead of updating live, and the Google button is hidden. See `.env.example` for each optional key.
 
-Timed jobs (the nightly reset, cutoff reminders, the demo reset) run with `php artisan schedule:work`.
+Timed jobs (the nightly reset, cutoff reminders, the demo reset, the nightly data clean-up) run with `php artisan schedule:work`.
 
 ## Tests
 

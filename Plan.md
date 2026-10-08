@@ -118,6 +118,9 @@ Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /
 | photo_path, photo_disk | nullable; the shop photo on the join page. `supabase` (public Storage bucket, `SUPABASE_STORAGE_BUCKET`) or `public` (local disk). A new random file name on every upload, so caches never show an old photo |
 | is_demo | bool; the public demo's sample shop (reset hourly, never sends SMS) |
 | timezone | default `Asia/Manila` |
+| plan | `free` \| `basic` \| `pro` (`App\Enums\Plan`); the plan paid for, set only by `php artisan plan:set` |
+| plan_expires_at | nullable; when the paid plan ends (null: it doesn't). After it, the shop is on Free |
+| trial_ends_at | nullable; new shops try the trial plan (Pro) until then |
 
 ### users
 Laravel default fields plus `business_id` (FK), `role` (`owner` | `staff`, enum) and `google_id` (nullable, unique; Google's account ID). `password` is nullable: owners who sign up with Google have none until they set one.
@@ -174,7 +177,9 @@ Created by the web push package's migration.
 ### Public (no login)
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/q/{business:slug}?k={qr_token}` | Join page: choose service, enter name, optional phone. Shows "Scan the QR code at the shop" if the token is missing or expired |
+| GET | `/` | Landing page, with a pricing section |
+| GET | `/pricing` | The plans, prices and common questions |
+| GET | `/q/{business:slug}?k={qr_token}` | Join page: choose service, enter name, optional phone (only on plans with texts). Shows "Scan the QR code at the shop" if the token is missing or expired |
 | POST | `/q/{business:slug}/tickets` | Create ticket, redirect to ticket page (rate-limited) |
 | GET | `/t/{ticket}` | Ticket page: number, position, ETA, live updates; a chime, vibration (Android) and a 🔔 tab title when called or recalled. Browsers allow sound only after a tap (there is no sound permission pop-up): the tap on "Get my ticket" counts, otherwise the page offers a "Turn on sound" button. The chime is a generated audio file, not Web Audio, because iPhones mute Web Audio when the silent switch is on |
 | POST | `/t/{ticket}/cancel` | Customer cancels |
@@ -204,7 +209,8 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | POST | `/dashboard/queue/toggle` | Open or pause the queue |
 | resource | `/dashboard/services` | CRUD services |
 | resource | `/dashboard/counters` | CRUD counters |
-| GET | `/dashboard/stats?days=1\|7\|30` | Today / last 7 / last 30 days (shop's timezone): served of joined, average wait (joined to called), average service (called to done), no-shows with rate, busiest hours (joins per local hour), served per day, by service and by counter. No names or phones |
+| GET | `/dashboard/stats?days=1\|7\|30\|90\|180\|365` | Today or the last days (shop's timezone), up to the plan's history (longer periods lead to Plan & billing): served of joined, average wait (joined to called), average service (called to done), no-shows with rate, busiest hours (joins per local hour), served per day (per week over 3 and 6 months, per month over 12), by service and by counter. No names or phones |
+| GET | `/dashboard/plan` | Plan & billing: the plan, this month's usage, the plans and how to pay |
 | GET | `/dashboard/qr` | Printable QR poster for the join page (warns when the QR code changes nightly) |
 | GET | `/dashboard/display` | TV display link, setup steps, reset |
 | POST | `/dashboard/display/reset` | New TV link; screens on the old one show "This TV link no longer works" |
@@ -365,6 +371,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `SMS_DRIVER` | `log` or `semaphore` |
 | `SEMAPHORE_API_KEY`, `SEMAPHORE_SENDER_NAME` | |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web push |
+| `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`, `PAYMENT_CONTACT` | Shown on Plan & billing: where owners pay and send the receipt. All empty: "Paid plans open soon" |
 
 Keep `.env.example` in sync with this table.
 
@@ -385,6 +392,26 @@ Keep `.env.example` in sync with this table.
 11. **Demo polish**: shop photo on the join page (from the Node version; needs Supabase Storage, since Railway's disk is wiped on every deploy), seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
     - Done as: a PilaPH landing page (replacing the starter kit's) with real product shots of the demo in device frames (`public/images/landing`, WebP, about 120 KB in all; below-the-fold images load lazily); `ResetDemoShop` builds Juan's Barbershop (4 services, 3 chairs, 14 days of history, 2 being served and 6 waiting) for `db:seed`, `demo:reset` (hourly while `DEMO_ENABLED`) and the first "Try the demo". The demo account has no password (the button is the only way in), its email is reserved, and `ProtectDemoAccount` blocks password, email, two-factor, passkey, account deletion, push alerts and photo uploads; its shop never texts. Photos are shrunk to 1600 px JPEGs in the browser before upload (which also drops their GPS metadata). Deploy: `railway.json`, `docs/deploy.md`, and `laravel` merged into `main` through a pull request.
 
+12. **Plans and data retention**: a free plan and two paid ones, so busy shops pay for what they use, and data stays small.
+    - **Plans** (`config/plans.php`, the only place prices and limits live):
+
+      | | Free | Basic ₱299/mo | Pro ₱799/mo |
+      |---|---|---|---|
+      | Counters switched on at once | 1 | 3 | no limit |
+      | Customers per calendar month | 300 | no limit | no limit |
+      | SMS per calendar month | none (no phone field) | 300 | 1,000 |
+      | History kept (and longest stats period) | 30 days | 6 months | 12 months |
+      | Shop photo, no "PilaPH" name on customer pages, TV and poster | no | yes | yes |
+
+    - **Trial**: every new shop (and every shop that existed before plans) gets 14 days of Pro, with 50 texts instead of 1,000 since each text costs. Then Free, by itself; nothing is charged or deleted.
+    - **The plan in effect** (`Business::currentPlan()`): a paid plan until `plan_expires_at`, else the trial, else Free. The demo shop is always Pro. Limits are checked where things happen: `StoreCounterRequest`/`UpdateCounterRequest` (switching on a counter), `CallNextTicket` (counters past the limit after a downgrade are locked; the oldest keep working), `CreateTicket` (the monthly limit, and no phone number kept on a plan without texts), `QueueTexts` (stops at the month's texts, the called customer first; a soft limit, two counters at once can go one over), `UpdateShopPhotoRequest`, and `StatsController` (periods within the plan's history).
+    - **Monthly customer limit**: counts tickets by queue date in the shop's month. Reaching it never closes joining in the middle of a day: joining closes from the next day (`joinClosedReason` = `monthly_limit`) until the 1st.
+    - **Owners see it**: a banner on owner pages (`PlanUsage::notice`, one message: a limit reached, locked counters, a plan that ended, the trial or plan ending within 5 days, texts or customers at 80%, the trial just ended); a **Plan & billing** page (`/dashboard/plan`) with this month's usage, the plans and how to pay; locked periods on Stats; the limit on Counters.
+    - **Everyone sees it**: a pricing section on the landing page and `/pricing`, both from `Plan::catalog()`.
+    - **Payments are manual for now**: owners send GCash or Maya (`PAYMENT_*` variables) with their shop's link name in the message, and the admin runs `php artisan plan:set {link name or owner email} basic --months=1`. Renewing the same plan early adds the months after the current end date. `plan:set … free` ends a plan or trial now; `--forever` gives a plan with no end date. `php artisan plan:list` shows every shop's plan, end date and this month's customers and texts. Later: PayMongo or Xendit (GCash, Maya, cards) with webhooks calling the same code as `plan:set`.
+    - **Retention** (`data:prune`, nightly at 3:15 AM): customer names and phone numbers are erased 7 days after their queue day, and the texts sent to them (which hold both) are deleted; counts and times stay for the stats. Tickets older than the plan's history are deleted in batches of 1,000. After a paid plan ends, its longer history is kept for 30 more days, so renewing late loses nothing. It also removes expired database cache rows (the join rate limiter leaves one per visitor). Also nightly: `queue:prune-failed --hours=168` and `auth:clear-resets`.
+    - Not done yet: invoices or receipts, automatic payment, a reminder email or push before a plan ends (the banner covers it), per-shop custom limits.
+
 ## Tests (Pest)
 - Two simultaneous joins never get the same number.
 - Two counters calling next at the same time never get the same ticket.
@@ -399,6 +426,7 @@ Keep `.env.example` in sync with this table.
 - Public broadcasts and public state endpoints never contain names or phone numbers.
 - The TV display needs its secret link, and a reset link stops working.
 - End of day closes only past days' tickets and rotates the QR code once per day.
+- Plans: the plan in effect (paid, ended, trial, demo), each limit, the banner's messages, `plan:set` and `plan:list`, and `data:prune` (erasing after 7 days, history per plan, the grace period after a plan ends).
 
 ## Coding conventions (for the AI assistant)
 - TypeScript in all React components; shared types in `resources/js/types`.
@@ -469,7 +497,7 @@ Naming: `App\Models\Service` is the business's service (Haircut, Consultation). 
 - Staff accounts (column exists; feature later).
 - Appointments or bookings (walk-in queue only).
 - Multi-language UI (English first; Tagalog/Cebuano later).
-- Payments.
+- Online payments (owners pay by GCash or Maya and the plan is switched on by hand; see phase 12).
 
 ## Growth path
 - When a business needs helpers on counters, enable `staff` role with limited permissions.

@@ -7,10 +7,12 @@ import {
     Smartphone,
     Tv,
 } from 'lucide-react';
-import AppLogoIcon from '@/components/app-logo-icon';
+import PricingTable, { everyPlanIncludes } from '@/components/pricing-table';
+import SiteHeader, { SiteFooter } from '@/components/site-header';
 import TryDemoButton from '@/components/try-demo-button';
 import { Button } from '@/components/ui/button';
-import { dashboard, login, register } from '@/routes';
+import { pricing, register } from '@/routes';
+import type { PlanOffer, TrialOffer } from '@/types';
 
 const features = [
     {
@@ -26,7 +28,7 @@ const features = [
     {
         icon: MessageSquareText,
         title: 'A text when it’s almost their turn',
-        text: 'An SMS when they’re near the front, and another when it’s their turn.',
+        text: 'An SMS when they’re near the front, and another when it’s their turn (Basic and Pro plans).',
     },
     {
         icon: BellRing,
@@ -63,7 +65,13 @@ const customerSteps = [
     },
 ];
 
-export default function Welcome() {
+export default function Welcome({
+    plans,
+    trial,
+}: {
+    plans: PlanOffer[];
+    trial: TrialOffer;
+}) {
     const { auth } = usePage().props;
 
     return (
@@ -71,33 +79,7 @@ export default function Welcome() {
             <Head title="Virtual queue for Philippine businesses" />
 
             <div className="min-h-svh bg-background text-foreground">
-                <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
-                    <Link
-                        href="/"
-                        className="flex items-center gap-2 font-semibold"
-                    >
-                        <span className="flex size-8 items-center justify-center rounded-md bg-slate-900">
-                            <AppLogoIcon className="size-6 fill-current text-emerald-500" />
-                        </span>
-                        PilaPH
-                    </Link>
-                    <nav className="flex items-center gap-2 text-sm">
-                        {auth.user ? (
-                            <Button asChild size="sm">
-                                <Link href={dashboard()}>Dashboard</Link>
-                            </Button>
-                        ) : (
-                            <>
-                                <Button asChild size="sm" variant="ghost">
-                                    <Link href={login()}>Log in</Link>
-                                </Button>
-                                <Button asChild size="sm">
-                                    <Link href={register()}>Sign up</Link>
-                                </Button>
-                            </>
-                        )}
-                    </nav>
-                </header>
+                <SiteHeader />
 
                 <main className="mx-auto grid max-w-6xl gap-20 px-4 pt-10 pb-20 md:pt-16">
                     <section className="grid items-center gap-14 lg:grid-cols-[1fr_1.15fr]">
@@ -192,6 +174,28 @@ export default function Welcome() {
                         </div>
                     </section>
 
+                    <section id="pricing" className="grid gap-6">
+                        <div className="flex flex-wrap items-end justify-between gap-3">
+                            <div className="grid max-w-2xl gap-2">
+                                <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+                                    Start free, upgrade when you&apos;re busy
+                                </h2>
+                                <p className="text-muted-foreground">
+                                    Every new shop gets {trial.days} days of{' '}
+                                    {trial.plan} free, with no card needed.
+                                    After that, stay on Free or pick a plan.
+                                </p>
+                            </div>
+                            <Button asChild variant="outline">
+                                <Link href={pricing()}>Pricing details</Link>
+                            </Button>
+                        </div>
+                        <PricingTable plans={plans} />
+                        <p className="text-sm text-muted-foreground">
+                            {everyPlanIncludes} Pay monthly by GCash or Maya.
+                        </p>
+                    </section>
+
                     <section className="grid gap-6 rounded-2xl bg-slate-900 p-6 text-slate-100 md:grid-cols-3 md:p-10">
                         <h2 className="text-2xl font-semibold md:col-span-3">
                             Ready in minutes
@@ -211,9 +215,7 @@ export default function Welcome() {
                     </section>
                 </main>
 
-                <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-                    PilaPH · Made for Philippine small businesses
-                </footer>
+                <SiteFooter />
             </div>
         </>
     );
