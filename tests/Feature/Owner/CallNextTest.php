@@ -41,7 +41,9 @@ test('calling next finishes the customer at the counter', function () {
     $next = Ticket::factory()->for($this->haircut)->create();
 
     $this->actingAs($this->owner);
-    callNext($this->chair, $current);
+    callNext($this->chair, $current)
+        // The toast says both, so it's clear the customer was marked done.
+        ->assertSessionHas('inertia.flash_data.toast', fn ($toast) => $toast['message'] === "{$current->code} is done. Calling {$next->code} to Chair 1.");
 
     expect($current->fresh())
         ->status->toBe(TicketStatus::Done)

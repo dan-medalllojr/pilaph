@@ -238,11 +238,15 @@ function CounterCard({
                             }
                         >
                             {processing && <Spinner />}
+                            {/* Call next also marks the current customer
+                                done; say so, so a no-show gets No-show. */}
                             {waitingCount === 0
                                 ? current
                                     ? 'Done, nobody waiting'
                                     : 'Nobody waiting'
-                                : 'Call next'}
+                                : current
+                                  ? `Done ${current.code} · Call next`
+                                  : 'Call next'}
                         </Button>
                     </>
                 )}
