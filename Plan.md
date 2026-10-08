@@ -176,7 +176,7 @@ Created by the web push package's migration.
 |---|---|---|
 | GET | `/q/{business:slug}?k={qr_token}` | Join page: choose service, enter name, optional phone. Shows "Scan the QR code at the shop" if the token is missing or expired |
 | POST | `/q/{business:slug}/tickets` | Create ticket, redirect to ticket page (rate-limited) |
-| GET | `/t/{ticket}` | Ticket page: number, position, ETA, live updates; a chime, vibration (Android) and a 🔔 tab title when called or recalled. Browsers allow sound only after a tap (there is no sound permission pop-up): the tap on "Get my ticket" counts, otherwise a "Turn on sound alerts?" prompt appears on arrival. The chime is a generated audio file, not Web Audio, because iPhones mute Web Audio when the silent switch is on |
+| GET | `/t/{ticket}` | Ticket page: number, position, ETA, live updates; a chime, vibration (Android) and a 🔔 tab title when called or recalled. Browsers allow sound only after a tap (there is no sound permission pop-up): the tap on "Get my ticket" counts, otherwise the page offers a "Turn on sound" button. The chime is a generated audio file, not Web Audio, because iPhones mute Web Audio when the silent switch is on |
 | POST | `/t/{ticket}/cancel` | Customer cancels |
 | GET | `/tv/{display_token}` | TV "now serving" display. Its own secret link (not `/q/{slug}/display`): the display shows the current QR code, so a guessable address would let anyone join from home. Short enough to type on a TV remote |
 | GET | `/tv/{display_token}/state` | JSON for the display: counters with who they're serving, next 5 codes, waiting count, join QR code (null while joining is closed). No personal data |

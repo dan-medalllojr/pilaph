@@ -23,7 +23,6 @@ import {
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState } from '@/hooks/use-live-state';
 import { useTurnAlert } from '@/hooks/use-turn-alert';
-import { soundReady } from '@/lib/chime';
 import type { SoundStatus } from '@/hooks/use-turn-alert';
 import {
     estimateWait,
@@ -157,10 +156,6 @@ export default function TicketPage({
 
             {isActive(ticket) && ticket.status === 'waiting' && (
                 <>
-                    <SoundPrompt
-                        status={turnAlert.status}
-                        onEnable={() => void turnAlert.enable()}
-                    />
                     <SoundNotice
                         status={turnAlert.status}
                         onEnable={() => void turnAlert.enable()}
@@ -174,57 +169,6 @@ export default function TicketPage({
                 </>
             )}
         </>
-    );
-}
-
-/**
- * Asks right away, when sound isn't on yet (they opened the ticket without
- * tapping "Get my ticket", e.g. from the SMS link). Browsers have no sound
- * permission pop-up: the tap on this button is what allows sound.
- */
-function SoundPrompt({
-    status,
-    onEnable,
-}: {
-    status: SoundStatus;
-    onEnable: () => void;
-}) {
-    const [open, setOpen] = useState(false);
-
-    useEffect(() => {
-        if (!soundReady()) {
-            setOpen(true);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (status !== 'off') {
-            setOpen(false);
-        }
-    }, [status]);
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent>
-                <DialogTitle>Turn on sound alerts?</DialogTitle>
-                <DialogDescription>
-                    We&apos;ll ring when it&apos;s your turn, so you can wait
-                    nearby. Turn off silent mode and turn up your volume so you
-                    don&apos;t miss it.
-                </DialogDescription>
-                <DialogFooter className="gap-2">
-                    <DialogClose asChild>
-                        <Button type="button" variant="secondary">
-                            Not now
-                        </Button>
-                    </DialogClose>
-                    <Button type="button" onClick={onEnable}>
-                        <BellRing />
-                        Turn on sound
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     );
 }
 
