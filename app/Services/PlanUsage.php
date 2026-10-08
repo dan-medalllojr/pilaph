@@ -206,7 +206,7 @@ class PlanUsage
             };
 
             if ($business->onTrial() && $days <= 5) {
-                return $this->info("Your {$plan->label()} trial ends {$when}. After that your shop moves to the Free plan: {$this->freePlanInBrief()}. Choose a plan to keep everything.");
+                return $this->info("Your {$plan->label()} trial ends {$when}. Then your shop moves to the Free plan: {$this->freePlanInBrief()}. Choose a plan to keep {$plan->label()} features.");
             }
             if ($business->hasPaidPlan() && $days <= 5) {
                 return $this->info("Your {$plan->label()} plan ends {$when}. Pay for the next month so nothing changes.");
@@ -242,7 +242,7 @@ class PlanUsage
     }
 
     /**
-     * "1 counter, 300 customers a month and no texts".
+     * "1 counter, 300 customers a month, no texts".
      */
     private function freePlanInBrief(): string
     {
@@ -256,7 +256,7 @@ class PlanUsage
             },
             $free->monthlyCustomers !== null ? "{$free->monthlyCustomers} customers a month" : 'no customer limit',
             $free->monthlySms > 0 ? "{$free->monthlySms} texts a month" : 'no texts',
-        ])->join(', ', ' and ');
+        ])->join(', ');
     }
 
     /**

@@ -53,7 +53,8 @@ export default function Pricing({
                         </h1>
                         <p className="text-lg text-muted-foreground">
                             Start free. Every new shop gets {trial.days} days of{' '}
-                            {trial.plan} to try everything, with no card needed.
+                            {trial.plan} free to try everything (with{' '}
+                            {trial.texts} texts), no card needed.
                         </p>
                     </section>
 

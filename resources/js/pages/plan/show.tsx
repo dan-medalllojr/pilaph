@@ -65,7 +65,7 @@ export default function PlanPage({ summary, plans, trial, payment }: Props) {
                     <Heading
                         variant="small"
                         title="Plans"
-                        description={`New shops get ${trial.days} days of ${trial.plan} free. Monthly limits reset on the 1st.`}
+                        description={`New shops get ${trial.days} days of ${trial.plan} free (with ${trial.texts} texts). Monthly limits reset on the 1st.`}
                     />
                     <PricingTable plans={plans} current={summary.plan.key} />
                     <p className="text-sm text-muted-foreground">
@@ -90,7 +90,7 @@ function CurrentPlan({ summary }: { summary: PlanSummary }) {
         demo: ['Demo shop', 'The demo shows every feature of the Pro plan.'],
         trial: [
             `${summary.plan.name} trial`,
-            `Free until ${endsAt}. After that your shop moves to the Free plan, unless you choose a plan.`,
+            `Free until ${endsAt}, with ${summary.limits.monthly_sms} texts. After that your shop moves to the Free plan, unless you choose a plan.`,
         ],
         paid: [
             `${summary.plan.name} plan`,

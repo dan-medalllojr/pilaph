@@ -25,10 +25,7 @@ class PlanController extends OwnerController
         return Inertia::render('plan/show', [
             'summary' => $usage->summary($business),
             'plans' => Plan::catalog(),
-            'trial' => [
-                'plan' => Business::trialPlan()->label(),
-                'days' => (int) config('plans.trial.days'),
-            ],
+            'trial' => Business::trialOffer(),
             'payment' => [
                 'gcash' => config('plans.payment.gcash'),
                 'maya' => config('plans.payment.maya'),

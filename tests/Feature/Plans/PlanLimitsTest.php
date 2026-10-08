@@ -251,7 +251,7 @@ describe('the plan banner', function () {
 
         $this->actingAs($this->owner)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('planNotice.tone', 'info')
-            ->where('planNotice.message', 'Your Pro trial ends in 3 days (Oct 18). After that your shop moves to the Free plan: 1 counter, 300 customers a month and no texts. Choose a plan to keep everything.'));
+            ->where('planNotice.message', 'Your Pro trial ends in 3 days (Oct 18). Then your shop moves to the Free plan: 1 counter, 300 customers a month, no texts. Choose a plan to keep Pro features.'));
     });
 
     test('says nothing early in the trial or on a paid plan', function () {
@@ -287,6 +287,7 @@ describe('pages', function () {
             ->where('summary.usage.customers', 4)
             ->where('summary.usage.active_counters', 1)
             ->where('summary.limits.monthly_sms', 50)
+            ->where('trial', ['plan' => 'Pro', 'days' => 14, 'texts' => 50])
             ->where('summary.resets_on', '2026-11-01')
             ->where('plans.1.key', 'basic')
             ->where('plans.1.price', 299)
@@ -300,7 +301,7 @@ describe('pages', function () {
             ->component('welcome')
             ->has('plans', 3)
             ->where('plans.0.limits.monthly_customers', 300)
-            ->where('trial', ['plan' => 'Pro', 'days' => 14]));
+            ->where('trial', ['plan' => 'Pro', 'days' => 14, 'texts' => 50]));
 
         $this->get(route('pricing'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('pricing')

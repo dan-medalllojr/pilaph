@@ -205,6 +205,23 @@ class Business extends Model
     }
 
     /**
+     * The trial as the pricing pages describe it: its plan, its length, and
+     * its texts (fewer than the plan's own).
+     *
+     * @return array{plan: string, days: int, texts: int}
+     */
+    public static function trialOffer(): array
+    {
+        $plan = self::trialPlan();
+
+        return [
+            'plan' => $plan->label(),
+            'days' => (int) config('plans.trial.days'),
+            'texts' => min($plan->limits()->monthlySms, (int) config('plans.trial.monthly_sms')),
+        ];
+    }
+
+    /**
      * @return HasMany<User, $this>
      */
     public function users(): HasMany

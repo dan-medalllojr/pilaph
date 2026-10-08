@@ -23,16 +23,13 @@ class PricingController extends Controller
     }
 
     /**
-     * @return array{plans: list<array{key: string, name: string, price: int, limits: array<string, int|bool|null>}>, trial: array{plan: string, days: int}}
+     * @return array{plans: list<array{key: string, name: string, price: int, limits: array<string, int|bool|null>}>, trial: array{plan: string, days: int, texts: int}}
      */
     private function pricing(): array
     {
         return [
             'plans' => Plan::catalog(),
-            'trial' => [
-                'plan' => Business::trialPlan()->label(),
-                'days' => (int) config('plans.trial.days'),
-            ],
+            'trial' => Business::trialOffer(),
         ];
     }
 }

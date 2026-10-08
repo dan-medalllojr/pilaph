@@ -22,7 +22,8 @@ export type PlanOffer = {
     limits: PlanLimits;
 };
 
-export type TrialOffer = { plan: string; days: number };
+/** The trial: its plan, its length, and its texts (fewer than the plan's). */
+export type TrialOffer = { plan: string; days: number; texts: number };
 
 /** A banner about the shop's plan (PlanUsage::notice). */
 export type PlanNotice = { tone: 'info' | 'warning'; message: string };

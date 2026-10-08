@@ -182,8 +182,9 @@ export default function Welcome({
                                 </h2>
                                 <p className="text-muted-foreground">
                                     Every new shop gets {trial.days} days of{' '}
-                                    {trial.plan} free, with no card needed.
-                                    After that, stay on Free or pick a plan.
+                                    {trial.plan} free (with {trial.texts}{' '}
+                                    texts), no card needed. After that, stay on
+                                    Free or pick a plan.
                                 </p>
                             </div>
                             <Button asChild variant="outline">
