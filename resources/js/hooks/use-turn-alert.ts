@@ -9,20 +9,28 @@ function vibrate(pattern: number | number[]): void {
 }
 
 /**
+ * - `on`: the page may play sound (it was tapped).
+ * - `off`: not yet; browsers only allow sound after a tap.
+ * - `blocked`: the browser refused even after a tap (site sound blocked).
+ */
+export type SoundStatus = 'on' | 'off' | 'blocked';
+
+/**
  * Sound (and vibration) on the customer's phone when they're called.
- * `ready` is false until the page has been tapped (browsers' rule).
  */
 export function useTurnAlert() {
-    const [ready, setReady] = useState(false);
+    const [status, setStatus] = useState<SoundStatus>('off');
 
     // Already unlocked by the tap on "Get my ticket"?
     useEffect(() => {
-        setReady(soundReady());
+        if (soundReady()) {
+            setStatus('on');
+        }
     }, []);
 
     const enable = useCallback(async () => {
         const unlocked = await unlockSound();
-        setReady(unlocked);
+        setStatus(unlocked ? 'on' : 'blocked');
 
         if (unlocked) {
             // A sample, so they know what to listen for.
@@ -36,5 +44,5 @@ export function useTurnAlert() {
         vibrate([400, 150, 400, 150, 400]);
     }, []);
 
-    return { ready, enable, alert };
+    return { status, enable, alert };
 }

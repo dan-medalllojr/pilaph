@@ -1,5 +1,6 @@
 import { Form, Head } from '@inertiajs/react';
 import {
+    BellOff,
     BellRing,
     CalendarX,
     CheckCircle2,
@@ -22,6 +23,7 @@ import {
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState } from '@/hooks/use-live-state';
 import { useTurnAlert } from '@/hooks/use-turn-alert';
+import type { SoundStatus } from '@/hooks/use-turn-alert';
 import {
     estimateWait,
     forgetTicket,
@@ -155,7 +157,7 @@ export default function TicketPage({
             {isActive(ticket) && ticket.status === 'waiting' && (
                 <>
                     <SoundNotice
-                        ready={turnAlert.ready}
+                        status={turnAlert.status}
                         onEnable={() => void turnAlert.enable()}
                     />
                     <p className="grid justify-items-center gap-1 text-center text-xs text-muted-foreground">
@@ -170,33 +172,57 @@ export default function TicketPage({
     );
 }
 
-/** Browsers only allow sound after a tap: offer one if it isn't on yet. */
+/**
+ * Browsers only allow sound after a tap, and a page can't tell whether the
+ * phone is muted: offer the tap, and remind them about silent mode and volume.
+ */
 function SoundNotice({
-    ready,
+    status,
     onEnable,
 }: {
-    ready: boolean;
+    status: SoundStatus;
     onEnable: () => void;
 }) {
-    if (ready) {
+    const volumeTip =
+        'Turn off silent mode and turn up your volume so you don’t miss it.';
+
+    if (status === 'on') {
         return (
-            <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-                <BellRing className="size-3.5 shrink-0" />
-                We&apos;ll play a sound when it&apos;s your turn. Keep your
-                phone off silent.
+            <p className="flex items-start justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                <BellRing className="mt-px size-3.5 shrink-0" />
+                <span>
+                    We&apos;ll play a sound when it&apos;s your turn.{' '}
+                    {volumeTip}
+                </span>
             </p>
         );
     }
 
+    if (status === 'blocked') {
+        return (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                <BellOff className="mt-0.5 size-5 shrink-0 text-amber-600" />
+                <p>
+                    Sound is blocked in this browser. Allow sound for this site
+                    in your browser settings, then reload this page. Keep
+                    watching this screen in the meantime.
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex items-center gap-3 rounded-lg border p-3">
-            <BellRing className="size-5 shrink-0 text-muted-foreground" />
-            <p className="flex-1 text-sm">
-                Want a sound when it&apos;s your turn?
-            </p>
-            <Button size="sm" variant="outline" onClick={onEnable}>
-                Turn on sound
-            </Button>
+        <div className="grid gap-2 rounded-lg border p-3">
+            <div className="flex items-center gap-3">
+                <BellRing className="size-5 shrink-0 text-muted-foreground" />
+                <p className="flex-1 text-sm">
+                    Want a sound when it&apos;s your turn?
+                </p>
+                <Button size="sm" variant="outline" onClick={onEnable}>
+                    Turn on sound
+                </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{volumeTip}</p>
         </div>
     );
 }
