@@ -65,12 +65,13 @@ return [
 
     // How owners pay (manually, for now). Shown on the Plan & billing page;
     // leave empty what you don't use.
+    // An empty variable counts as not set.
     'payment' => [
-        'gcash' => env('PAYMENT_GCASH_NUMBER'),
-        'maya' => env('PAYMENT_MAYA_NUMBER'),
-        'account_name' => env('PAYMENT_ACCOUNT_NAME'),
+        'gcash' => env('PAYMENT_GCASH_NUMBER') ?: null,
+        'maya' => env('PAYMENT_MAYA_NUMBER') ?: null,
+        'account_name' => env('PAYMENT_ACCOUNT_NAME') ?: null,
         // Where owners send the payment screenshot (an email address or a link).
-        'contact' => env('PAYMENT_CONTACT'),
+        'contact' => env('PAYMENT_CONTACT') ?: null,
     ],
 
 ];
