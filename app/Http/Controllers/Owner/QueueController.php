@@ -46,6 +46,7 @@ class QueueController extends OwnerController
         ['finished' => $finished, 'called' => $called] = $callNext->execute($counter, $expected);
 
         $this->toast(match (true) {
+            $called !== null && $finished !== null => ['success', __(':done is done. Calling :code to :counter.', ['done' => $finished->code, 'code' => $called->code, 'counter' => $counter->name])],
             $called !== null => ['success', __('Calling :code to :counter.', ['code' => $called->code, 'counter' => $counter->name])],
             $finished !== null => ['info', __(':code is done. Nobody else is waiting.', ['code' => $finished->code])],
             default => ['info', __('Nobody is waiting.')],

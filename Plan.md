@@ -234,7 +234,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 ### 2. Owner taps "Call next"
 1. Acquire an atomic lock for the counter (`Cache::lock("counter:{id}", 10)`). If it is already held, return "Still processing, please wait."
 2. Compare the request's `expected_current_ticket_id` with the counter's actual current ticket. If they differ (an earlier tap already went through), reject with "Already called A-025" and return fresh state. This stops a double-tap from calling two customers.
-3. In a DB transaction: mark the counter's current `called` ticket as `done` (if any).
+3. In a DB transaction: mark the counter's current `called` ticket as `done` (if any). One tap per customer, so the button says so while someone is at the counter ("Done A-003 · Call next") and the toast names both ("A-003 is done. Calling A-004 to Chair 1."): a customer who never came should get No-show first, or Stats count them as served.
 4. Select the oldest `waiting` ticket for today using `lockForUpdate()->skipLocked()` so two counters never grab the same ticket.
 5. Set `status = called`, `counter_id`, `called_at`. Release the counter lock.
 6. After commit:
