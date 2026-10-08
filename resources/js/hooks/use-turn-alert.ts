@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { playTurnAlert, soundReady, unlockSound } from '@/lib/chime';
+import { enableSound, playTurnAlert, soundReady } from '@/lib/chime';
 
 function vibrate(pattern: number | number[]): void {
     // Android browsers; iPhones have no vibration for web pages.
@@ -28,13 +28,12 @@ export function useTurnAlert() {
         }
     }, []);
 
+    // From a tap: plays the chime once as a sample.
     const enable = useCallback(async () => {
-        const unlocked = await unlockSound();
+        const unlocked = await enableSound();
         setStatus(unlocked ? 'on' : 'blocked');
 
         if (unlocked) {
-            // A sample, so they know what to listen for.
-            playTurnAlert();
             vibrate(200);
         }
     }, []);
