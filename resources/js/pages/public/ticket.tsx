@@ -43,7 +43,9 @@ export default function TicketPage({
     ticket: TicketState;
 }) {
     // When the owner taps Recall, show that they're calling again.
-    const [recalledAt, setRecalledAt] = useState<number | null>(null);
+    const [recalledAt, setRecalledAt] = useState<number | null>(
+        initial.recalled_at !== null ? Date.now() : null,
+    );
 
     const { state: ticket, live } = useLiveState({
         initial,
@@ -54,11 +56,20 @@ export default function TicketPage({
             // Anyone can send to a public channel, so news about this ticket
             // itself is confirmed with the server before it's shown.
             if (topic.startsWith('ticket:')) {
-                if ((payload as { recalled?: boolean } | null)?.recalled) {
-                    setRecalledAt(Date.now());
-                }
-
                 refetch();
+
+                return;
+            }
+
+            // Called already: a queue event about this ticket (e.g. Recall)
+            // means checking with the server, in case its own message is missed.
+            if (state.status === 'called') {
+                if (
+                    (payload as QueueBroadcast | null)?.ticket?.code ===
+                    state.code
+                ) {
+                    refetch();
+                }
 
                 return;
             }
@@ -111,11 +122,21 @@ export default function TicketPage({
         previousStatus.current = ticket.status;
     }, [ticket.status, ticket.past_day, alert]);
 
+    // A newer recall time from the server: they're being called again. Found
+    // by any refetch (live event, reconnect or the 20 s fallback check).
+    const previousRecall = useRef(ticket.recalled_at);
     useEffect(() => {
-        if (recalledAt !== null) {
+        if (
+            ticket.recalled_at !== null &&
+            ticket.recalled_at !== previousRecall.current &&
+            ticket.status === 'called'
+        ) {
+            setRecalledAt(Date.now());
             alert();
         }
-    }, [recalledAt, alert]);
+
+        previousRecall.current = ticket.recalled_at;
+    }, [ticket.recalled_at, ticket.status, alert]);
 
     // Remember the ticket on this phone while it's active, so the join page
     // can link back to it.

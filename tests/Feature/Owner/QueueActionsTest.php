@@ -56,6 +56,31 @@ test('recall keeps the ticket called', function () {
         ->called_at->equalTo($calledAt)->toBeTrue();
 });
 
+test('each recall is timed, so the customer\'s page notices it even if the live message is missed', function () {
+    $ticket = Ticket::factory()->for($this->service)->called($this->chair)->create();
+    expect($this->getJson(route('tickets.state', $ticket))->json('recalled_at'))->toBeNull();
+
+    $this->travelTo(now()->addMinute());
+    $this->actingAs($this->owner)->post(route('dashboard.tickets.recall', $ticket));
+    $first = $this->getJson(route('tickets.state', $ticket))->json('recalled_at');
+
+    $this->travelTo(now()->addMinute());
+    $this->actingAs($this->owner)->post(route('dashboard.tickets.recall', $ticket));
+    $second = $this->getJson(route('tickets.state', $ticket))->json('recalled_at');
+
+    expect($first)->not->toBeNull()
+        ->and($second)->not->toBeNull()
+        ->and($second)->not->toBe($first);
+});
+
+test('a ticket that is no longer called is not recalled', function () {
+    $ticket = Ticket::factory()->for($this->service)->done()->create(['counter_id' => $this->chair->id]);
+
+    $this->actingAs($this->owner)->post(route('dashboard.tickets.recall', $ticket));
+
+    expect($ticket->fresh()->recalled_at)->toBeNull();
+});
+
 test('owners can remove spam tickets from the waiting list', function () {
     [$spam1, $spam2, $real] = Ticket::factory()->for($this->service)->count(3)->create();
     $called = Ticket::factory()->for($this->service)->called($this->chair)->create();
