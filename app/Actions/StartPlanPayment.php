@@ -58,7 +58,12 @@ class StartPlanPayment
             ]);
         } catch (RequestException|ConnectionException $exception) {
             $payment->update(['status' => PaymentStatus::Failed]);
-            Log::warning('HitPay did not start a plan payment', ['payment' => $payment->id, 'error' => $exception->getMessage()]);
+            // HitPay's whole answer (its reason, e.g. a payment method not turned on); it never contains the API key.
+            Log::warning('HitPay did not start a plan payment', [
+                'payment' => $payment->id,
+                'status' => $exception instanceof RequestException ? $exception->response->status() : null,
+                'hitpay' => $exception instanceof RequestException ? mb_substr($exception->response->body(), 0, 2000) : $exception->getMessage(),
+            ]);
 
             throw ValidationException::withMessages(['plan' => "Couldn't start the payment. Please try again in a moment."]);
         }

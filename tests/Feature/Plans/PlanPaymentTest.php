@@ -9,6 +9,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -146,10 +147,14 @@ describe('starting a payment', function () {
         Http::assertNothingSent();
     });
 
-    test('if HitPay fails, the owner is told and nothing is charged', function () {
-        Http::fake([HITPAY_CREATE => Http::response(['message' => 'Server error'], 500)]);
+    test('if HitPay fails, the owner is told, nothing is charged, and HitPay\'s reason is logged', function () {
+        $reason = 'The selected payment method (qrph_netbank) is unavailable for your account or the currency is invalid. Please check the payment method you selected.';
+        Http::fake([HITPAY_CREATE => Http::response(['error_code' => 'validation_error', 'message' => $reason], 422)]);
+        Log::spy();
 
         startPayment($this)->assertSessionHasErrors(['plan' => "Couldn't start the payment. Please try again in a moment."]);
+
+        Log::shouldHaveReceived('warning')->withArgs(fn ($message, $context) => $context['status'] === 422 && str_contains($context['hitpay'], $reason));
 
         expect(PlanPayment::sole()->status)->toBe(PaymentStatus::Failed)
             ->and($this->business->fresh()->currentPlan())->toBe(Plan::Free);
