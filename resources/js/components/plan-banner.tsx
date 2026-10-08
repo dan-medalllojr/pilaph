@@ -28,7 +28,9 @@ export default function PlanBanner() {
         >
             <p className="max-w-3xl">{planNotice.message}</p>
             <Button asChild size="sm" variant="outline">
-                <Link href={planShow()}>See plans</Link>
+                <Link href={planShow()}>
+                    {planNotice.action === 'pay' ? 'Pay now' : 'See plans'}
+                </Link>
             </Button>
         </div>
     );

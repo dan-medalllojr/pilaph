@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // HitPay's webhook proves itself with a signature instead.
+        $middleware->validateCsrfTokens(except: ['webhooks/hitpay']);
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,

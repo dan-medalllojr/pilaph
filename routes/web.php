@@ -6,12 +6,14 @@ use App\Http\Controllers\Customer\JoinController;
 use App\Http\Controllers\Customer\QueueStateController;
 use App\Http\Controllers\Customer\TicketController;
 use App\Http\Controllers\DemoController;
+use App\Http\Controllers\HitPayWebhookController;
 use App\Http\Controllers\Owner\BusinessSettingsController;
 use App\Http\Controllers\Owner\BusinessSetupController;
 use App\Http\Controllers\Owner\CounterController;
 use App\Http\Controllers\Owner\DashboardController;
 use App\Http\Controllers\Owner\DisplaySettingsController;
 use App\Http\Controllers\Owner\PlanController;
+use App\Http\Controllers\Owner\PlanPaymentController;
 use App\Http\Controllers\Owner\PushSubscriptionController;
 use App\Http\Controllers\Owner\QrPosterController;
 use App\Http\Controllers\Owner\QueueController;
@@ -24,6 +26,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PricingController::class, 'home'])->name('home');
 Route::get('pricing', [PricingController::class, 'show'])->name('pricing');
+
+// HitPay: a plan payment went through (signed; no CSRF token, see bootstrap/app.php).
+Route::post('webhooks/hitpay', HitPayWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('webhooks.hitpay');
 
 // "Try the demo" (DEMO_ENABLED): sign in as the sample shop's owner.
 Route::post('demo', [DemoController::class, 'store'])
@@ -89,6 +96,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('stats', [StatsController::class, 'show'])->name('stats.show');
         Route::get('plan', [PlanController::class, 'show'])->name('plan.show');
+        Route::post('plan/payments', [PlanPaymentController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('plan.payments.store');
+        Route::get('plan/payments/{payment}', [PlanPaymentController::class, 'show'])
+            ->whereUuid('payment')
+            ->name('plan.payments.show');
         Route::get('qr', [QrPosterController::class, 'show'])->name('qr.show');
         Route::get('display', [DisplaySettingsController::class, 'edit'])->name('display.edit');
         Route::post('display/reset', [DisplaySettingsController::class, 'reset'])->name('display.reset');

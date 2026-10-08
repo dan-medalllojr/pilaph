@@ -26,7 +26,44 @@ export type PlanOffer = {
 export type TrialOffer = { plan: string; days: number; texts: number };
 
 /** A banner about the shop's plan (PlanUsage::notice). */
-export type PlanNotice = { tone: 'info' | 'warning'; message: string };
+export type PlanNotice = {
+    tone: 'info' | 'warning';
+    message: string;
+    /** The banner's button: "Pay now" or "See plans". */
+    action: 'pay' | 'plans';
+};
+
+/** A plan and number of months the owner can pay for online. */
+export type PaymentOption = {
+    plan: PlanKey;
+    months: number;
+    /** Pesos. */
+    amount: number;
+    /** When the plan would end if paid now. */
+    ends_at: string;
+    /** Why it can't be bought now (e.g. a dearer plan is running). */
+    refusal: string | null;
+};
+
+/** A payment the owner started but hasn't finished (last 24 hours). */
+export type PendingPayment = {
+    plan: string;
+    months: number;
+    amount: string;
+    /** HitPay's checkout page, to finish paying. */
+    checkout_url: string;
+    /** Asks HitPay whether it was paid. */
+    check_url: string;
+};
+
+export type PaidPayment = {
+    id: string;
+    plan: string;
+    months: number;
+    amount: string;
+    paid_at: string | null;
+    plan_ends_at: string | null;
+};
 
 /** The Plan & billing page (PlanUsage::summary). */
 export type PlanSummary = {

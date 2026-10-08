@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  * How much of its plan a shop has used this calendar month (business
  * timezone), and what that means for joining, texts and counters.
  *
- * @phpstan-type Notice array{tone: 'info'|'warning', message: string}
+ * @phpstan-type Notice array{tone: 'info'|'warning', message: string, action: 'pay'|'plans'}
  */
 class PlanUsage
 {
@@ -191,7 +191,7 @@ class PlanUsage
             $ended = $business->plan_expires_at->setTimezone($business->timezone);
             $keptUntil = $ended->addDays((int) config('plans.grace_days'));
             if ($keptUntil->isFuture()) {
-                return $this->warning("Your {$business->plan->label()} plan ended on {$ended->format('M j')}, so your shop is on the Free plan. Renew by {$keptUntil->format('M j')} to keep your older stats.");
+                return $this->warning("Your {$business->plan->label()} plan ended on {$ended->format('M j')}, so your shop is on the Free plan. Renew by {$keptUntil->format('M j')} to keep your older stats.", 'pay');
             }
         }
 
@@ -206,10 +206,10 @@ class PlanUsage
             };
 
             if ($business->onTrial() && $days <= 5) {
-                return $this->info("Your {$plan->label()} trial ends {$when}. Then your shop moves to the Free plan: {$this->freePlanInBrief()}. Choose a plan to keep {$plan->label()} features.");
+                return $this->info("Your {$plan->label()} trial ends {$when}. Then your shop moves to the Free plan: {$this->freePlanInBrief()}. Choose a plan to keep {$plan->label()} features.", 'pay');
             }
             if ($business->hasPaidPlan() && $days <= 5) {
-                return $this->info("Your {$plan->label()} plan ends {$when}. Pay for the next month so nothing changes.");
+                return $this->info("Your {$plan->label()} plan ends {$when}. Pay for the next month so nothing changes.", 'pay');
             }
         }
 
@@ -268,18 +268,20 @@ class PlanUsage
     }
 
     /**
+     * @param  'pay'|'plans'  $action  The banner's button: "Pay now" or "See plans".
      * @return Notice
      */
-    private function info(string $message): array
+    private function info(string $message, string $action = 'plans'): array
     {
-        return ['tone' => 'info', 'message' => $message];
+        return ['tone' => 'info', 'message' => $message, 'action' => $action];
     }
 
     /**
+     * @param  'pay'|'plans'  $action
      * @return Notice
      */
-    private function warning(string $message): array
+    private function warning(string $message, string $action = 'plans'): array
     {
-        return ['tone' => 'warning', 'message' => $message];
+        return ['tone' => 'warning', 'message' => $message, 'action' => $action];
     }
 }

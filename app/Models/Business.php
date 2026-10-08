@@ -254,6 +254,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<PlanPayment, $this>
+     */
+    public function planPayments(): HasMany
+    {
+        return $this->hasMany(PlanPayment::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

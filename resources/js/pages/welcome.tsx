@@ -68,9 +68,12 @@ const customerSteps = [
 export default function Welcome({
     plans,
     trial,
+    online,
 }: {
     plans: PlanOffer[];
     trial: TrialOffer;
+    /** Owners pay by QR Ph in the app (else by sending GCash or Maya). */
+    online: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -193,7 +196,10 @@ export default function Welcome({
                         </div>
                         <PricingTable plans={plans} />
                         <p className="text-sm text-muted-foreground">
-                            {everyPlanIncludes} Pay monthly by GCash or Maya.
+                            {everyPlanIncludes}{' '}
+                            {online
+                                ? 'Pay by QR Ph with GCash, Maya or your bank app.'
+                                : 'Pay monthly by GCash or Maya.'}
                         </p>
                     </section>
 

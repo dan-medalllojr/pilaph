@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { dashboard, register } from '@/routes';
 import type { PlanOffer, TrialOffer } from '@/types';
 
-function questions(plans: PlanOffer[]) {
+function questions(plans: PlanOffer[], online: boolean, months: number[]) {
     const freeLimit = plans.find((plan) => plan.key === 'free')?.limits
         .monthly_customers;
 
@@ -17,7 +17,9 @@ function questions(plans: PlanOffer[]) {
         },
         {
             question: 'How do I pay?',
-            answer: 'By GCash or Maya, a month at a time. The steps are on the Plan & billing page once you sign up. Paying before your plan ends adds the month after it, so you never lose days.',
+            answer: online
+                ? `On the Plan & billing page, choose ${months.join(', ').replace(/, (\d+)$/, ' or $1')} months and scan the QR Ph code with GCash, Maya or your bank app. Your plan switches on as soon as it’s paid. Paying before your plan ends adds the months after it, so you never lose days.`
+                : 'By GCash or Maya, a month at a time. The steps are on the Plan & billing page once you sign up. Paying before your plan ends adds the month after it, so you never lose days.',
         },
         freeLimit != null && {
             question: `What if a Free shop gets more than ${freeLimit} customers in a month?`,
@@ -33,9 +35,15 @@ function questions(plans: PlanOffer[]) {
 export default function Pricing({
     plans,
     trial,
+    online,
+    months,
 }: {
     plans: PlanOffer[];
     trial: TrialOffer;
+    /** Owners pay by QR Ph in the app (else by sending GCash or Maya). */
+    online: boolean;
+    /** How many months can be paid for at once. */
+    months: number[];
 }) {
     const { auth } = usePage().props;
 
@@ -105,7 +113,7 @@ export default function Pricing({
                             Questions
                         </h2>
                         <dl className="grid gap-6 md:grid-cols-2">
-                            {questions(plans).map((item) => (
+                            {questions(plans, online, months).map((item) => (
                                 <div key={item.question} className="grid gap-1">
                                     <dt className="font-medium">
                                         {item.question}

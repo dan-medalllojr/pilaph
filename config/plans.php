@@ -55,6 +55,10 @@ return [
         'monthly_sms' => 50,
     ],
 
+    // How many months an owner can pay for at once (no discount: one payment
+    // fee, ₱20, whatever the amount, so longer periods lose less to fees).
+    'months' => [1, 3, 6, 12],
+
     // After a paid plan ends, its longer history is kept this many days, so
     // paying late never loses data.
     'grace_days' => 30,

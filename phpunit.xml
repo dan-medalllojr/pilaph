@@ -45,6 +45,9 @@
         <env name="PAYMENT_MAYA_NUMBER" value=""/>
         <env name="PAYMENT_ACCOUNT_NAME" value=""/>
         <env name="PAYMENT_CONTACT" value=""/>
+        <env name="HITPAY_API_KEY" value=""/>
+        <env name="HITPAY_SALT" value=""/>
+        <env name="HITPAY_SANDBOX" value="true"/>
         <env name="GOOGLE_CLIENT_ID" value=""/>
         <env name="GOOGLE_CLIENT_SECRET" value=""/>
         <env name="SESSION_DRIVER" value="array"/>

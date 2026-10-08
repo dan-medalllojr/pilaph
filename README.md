@@ -44,7 +44,7 @@ Customers scan a QR code, pick a service and get a ticket number on their phone.
 | Stats history              | 30 days | 6 months      | 12 months   |
 | Shop photo, no PilaPH name | no      | yes           | yes         |
 
-New shops get 14 days of Pro, with 50 texts. A Free shop's queue is never cut off mid-day: past 300 customers, joining closes from the next day. Customer names and phone numbers are erased a week after their visit, and history older than the plan keeps is deleted, every night (`php artisan data:prune`). Owners pay by GCash or Maya for now; `php artisan plan:set` switches the plan on, and `php artisan plan:list` shows every shop's plan.
+New shops get 14 days of Pro, with 50 texts. A Free shop's queue is never cut off mid-day: past 300 customers, joining closes from the next day. Customer names and phone numbers are erased a week after their visit, and history older than the plan keeps is deleted, every night (`php artisan data:prune`). Owners pay on the Plan & billing page by QR Ph (GCash, Maya or a bank app) through [HitPay](https://hitpayapp.com/ph/qr-ph), 1, 3, 6 or 12 months at a time, and the plan switches on by itself. `php artisan plan:set` changes a plan by hand (a free plan, a refund), and `php artisan plan:list` shows every shop's plan.
 
 Try it: the landing page's **Try the demo** button signs you in to a sample barbershop that starts fresh every hour.
 

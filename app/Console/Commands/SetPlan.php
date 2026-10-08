@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\ActivatePlan;
 use App\Enums\Plan;
 use App\Models\Business;
 use App\Models\User;
@@ -11,9 +12,9 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
 /**
- * For the admin, while payments are manual: after an owner pays by GCash or
- * Maya, switch their shop's plan on. Paying again for the same plan adds
- * the months after the current end date, so renewing early loses nothing.
+ * For the admin: switch a shop's plan on after a payment made outside the app
+ * (or for a shop you don't charge), or end it. Same rules as paying online
+ * (ActivatePlan): renewing early adds the months after the current end date.
  */
 #[Signature('plan:set
     {shop : The shop\'s link name (as in /q/...) or its owner\'s email}
@@ -23,7 +24,7 @@ use Illuminate\Support\Str;
 #[Description('Change a shop\'s plan (after a payment)')]
 class SetPlan extends Command
 {
-    public function handle(): int
+    public function handle(ActivatePlan $activate): int
     {
         $business = $this->findBusiness((string) $this->argument('shop'));
         if ($business === null) {
@@ -65,23 +66,23 @@ class SetPlan extends Command
             return self::SUCCESS;
         }
 
-        if ($this->option('forever')) {
-            $business->forceFill(['plan' => $plan, 'plan_expires_at' => null])->save();
+        // Read before the change: whether this renews the same plan, or switches.
+        $renewing = $business->plan === $plan && $business->hasPaidPlan() && $business->plan_expires_at !== null;
+        $switchingFrom = $business->hasPaidPlan() && $business->plan !== $plan ? $business->plan : null;
+
+        $endsAt = $activate->execute($business, $plan, $this->option('forever') ? null : (int) $months);
+
+        if ($endsAt === null) {
             $this->components->info("{$business->name} is now on {$plan->label()}, with no end date.");
 
             return self::SUCCESS;
         }
 
-        // Renewing the same plan early: the new months start when the current ones end.
-        $renewing = $business->plan === $plan && $business->hasPaidPlan() && $business->plan_expires_at !== null;
-        $start = $renewing ? $business->plan_expires_at : now();
-        $endsAt = $start->addMonths((int) $months);
-
-        if ($business->hasPaidPlan() && $business->plan !== $plan) {
-            $this->components->warn("Switching from {$business->plan->label()}: its remaining days don't carry over. Add them with --months if you want.");
+        if ($switchingFrom !== null) {
+            $this->components->warn($plan->price() > $switchingFrom->price()
+                ? "Switched from {$switchingFrom->label()}: its unused days were added as {$plan->label()} days of the same value."
+                : "Switched from {$switchingFrom->label()}: its remaining days don't carry over. Add them with --months if you want.");
         }
-
-        $business->forceFill(['plan' => $plan, 'plan_expires_at' => $endsAt])->save();
 
         $paid = number_format($plan->price() * (int) $months);
         $this->components->info(sprintf(

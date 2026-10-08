@@ -1,13 +1,23 @@
-import { Head } from '@inertiajs/react';
+import { Form, Head, Link } from '@inertiajs/react';
+import { QrCode } from 'lucide-react';
+import { useState } from 'react';
+import PlanPaymentController from '@/actions/App/Http/Controllers/Owner/PlanPaymentController';
 import Heading from '@/components/heading';
+import InputError from '@/components/input-error';
 import PricingTable, {
     everyPlanIncludes,
     historyLabel,
 } from '@/components/pricing-table';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/plan';
 import type {
+    PaidPayment,
     PaymentDetails,
+    PaymentOption,
+    PendingPayment,
+    PlanKey,
     PlanOffer,
     PlanSummary,
     TrialOffer,
@@ -29,10 +39,30 @@ type Props = {
     summary: PlanSummary;
     plans: PlanOffer[];
     trial: TrialOffer;
+    /** Paying by QR Ph in the app is set up (HitPay). */
+    online: boolean;
+    options: PaymentOption[];
+    pending: PendingPayment | null;
+    history: PaidPayment[];
+    /** The manual GCash/Maya steps, when online payments aren't set up. */
     payment: PaymentDetails;
 };
 
-export default function PlanPage({ summary, plans, trial, payment }: Props) {
+export default function PlanPage({
+    summary,
+    plans,
+    trial,
+    online,
+    options,
+    pending,
+    history,
+    payment,
+}: Props) {
+    // Nothing to pay for: the demo, or a plan without an end date.
+    const canPay =
+        summary.status !== 'demo' &&
+        !(summary.status === 'paid' && summary.ends_at === null);
+
     return (
         <>
             <Head title="Plan & billing" />
@@ -59,6 +89,17 @@ export default function PlanPage({ summary, plans, trial, payment }: Props) {
 
                 <CurrentPlan summary={summary} />
 
+                {online && pending && <Pending pending={pending} />}
+
+                {online && canPay && (
+                    <PayOnline
+                        options={options}
+                        plans={plans}
+                        current={summary.plan.key}
+                        onTrial={summary.status === 'trial'}
+                    />
+                )}
+
                 <Usage summary={summary} />
 
                 <section className="grid gap-4">
@@ -73,11 +114,213 @@ export default function PlanPage({ summary, plans, trial, payment }: Props) {
                     </p>
                 </section>
 
-                {summary.status !== 'demo' && (
+                {!online && canPay && (
                     <HowToPay payment={payment} plans={plans} />
                 )}
+
+                {history.length > 0 && <History history={history} />}
             </div>
         </>
+    );
+}
+
+/** Choose a plan and months, then pay on HitPay's page by QR Ph. */
+function PayOnline({
+    options,
+    plans,
+    current,
+    onTrial,
+}: {
+    options: PaymentOption[];
+    plans: PlanOffer[];
+    current: PlanKey;
+    /** current is the trial's plan; another plan starts now and ends the trial. */
+    onTrial: boolean;
+}) {
+    const paidPlans = plans.filter((plan) => plan.price > 0);
+    const [plan, setPlan] = useState<PlanKey>(
+        current === 'free' ? 'basic' : current,
+    );
+    const [months, setMonths] = useState(1);
+    const monthChoices = [
+        ...new Set(options.map((option) => option.months)),
+    ].sort((a, b) => a - b);
+    const chosen = options.find(
+        (option) => option.plan === plan && option.months === months,
+    );
+
+    return (
+        <section className="grid gap-4 rounded-lg border p-4">
+            <Heading
+                variant="small"
+                title="Pay for a plan"
+                description="By QR Ph: scan with GCash, Maya or your bank app"
+            />
+
+            <Form
+                {...PlanPaymentController.store.form()}
+                className="grid gap-4"
+            >
+                {({ processing, errors }) => (
+                    <>
+                        <fieldset className="grid gap-2">
+                            <legend className="mb-2 text-sm font-medium">
+                                Plan
+                            </legend>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {paidPlans.map((offer) => (
+                                    <label
+                                        key={offer.key}
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-3 rounded-lg border p-3',
+                                            plan === offer.key &&
+                                                'border-emerald-600 bg-emerald-500/5 dark:border-emerald-500',
+                                        )}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="plan"
+                                            value={offer.key}
+                                            checked={plan === offer.key}
+                                            onChange={() => setPlan(offer.key)}
+                                            className="size-4 accent-emerald-600"
+                                        />
+                                        <span className="flex-1 font-medium">
+                                            {offer.name}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground">
+                                            ₱{peso.format(offer.price)} a month
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        </fieldset>
+
+                        <fieldset className="grid gap-2">
+                            <legend className="mb-2 text-sm font-medium">
+                                How many months
+                            </legend>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {monthChoices.map((choice) => (
+                                    <label
+                                        key={choice}
+                                        className={cn(
+                                            'flex cursor-pointer items-center justify-center rounded-lg border px-2 py-2 text-sm',
+                                            months === choice &&
+                                                'border-emerald-600 bg-emerald-500/5 font-medium dark:border-emerald-500',
+                                        )}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="months"
+                                            value={choice}
+                                            checked={months === choice}
+                                            onChange={() => setMonths(choice)}
+                                            className="sr-only"
+                                        />
+                                        {choice === 1
+                                            ? '1 month'
+                                            : `${choice} months`}
+                                    </label>
+                                ))}
+                            </div>
+                        </fieldset>
+
+                        {chosen && (
+                            <p className="text-sm">
+                                <span className="text-lg font-semibold">
+                                    ₱{peso.format(chosen.amount)}
+                                </span>{' '}
+                                <span className="text-muted-foreground">
+                                    {chosen.refusal ??
+                                        `· ${paidPlans.find((offer) => offer.key === plan)?.name} until ${longDate.format(toDate(chosen.ends_at))}${
+                                            onTrial && plan !== current
+                                                ? ' (starts now; your trial ends)'
+                                                : ''
+                                        }`}
+                                </span>
+                            </p>
+                        )}
+
+                        <InputError message={errors.plan ?? errors.months} />
+
+                        <div className="grid gap-2 sm:flex sm:items-center sm:gap-4">
+                            <Button
+                                type="submit"
+                                className="h-11"
+                                disabled={
+                                    processing || !chosen || !!chosen.refusal
+                                }
+                            >
+                                {processing ? <Spinner /> : <QrCode />}
+                                {chosen
+                                    ? `Pay ₱${peso.format(chosen.amount)} with QR Ph`
+                                    : 'Pay with QR Ph'}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                                You&apos;ll scan the code on HitPay&apos;s
+                                secure page. Your plan switches on as soon as
+                                it&apos;s paid.
+                            </p>
+                        </div>
+                    </>
+                )}
+            </Form>
+        </section>
+    );
+}
+
+function Pending({ pending }: { pending: PendingPayment }) {
+    const months =
+        pending.months === 1 ? '1 month' : `${pending.months} months`;
+
+    return (
+        <section className="grid gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 p-4 text-sm">
+            <p>
+                You started paying ₱{peso.format(Number(pending.amount))} for{' '}
+                {pending.plan}, {months}, but we haven&apos;t received it yet.
+            </p>
+            <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm">
+                    <a href={pending.checkout_url}>Continue paying</a>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                    <Link href={pending.check_url}>I paid, check again</Link>
+                </Button>
+            </div>
+        </section>
+    );
+}
+
+function History({ history }: { history: PaidPayment[] }) {
+    return (
+        <section className="grid gap-3">
+            <Heading variant="small" title="Payments" />
+            <ul className="divide-y rounded-lg border text-sm">
+                {history.map((item) => (
+                    <li
+                        key={item.id}
+                        className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 p-3"
+                    >
+                        <span className="font-medium">
+                            {item.plan},{' '}
+                            {item.months === 1
+                                ? '1 month'
+                                : `${item.months} months`}{' '}
+                            · ₱{peso.format(Number(item.amount))}
+                        </span>
+                        <span className="text-muted-foreground">
+                            Paid{' '}
+                            {item.paid_at
+                                ? longDate.format(toDate(item.paid_at))
+                                : ''}
+                            {item.plan_ends_at &&
+                                ` · until ${longDate.format(toDate(item.plan_ends_at))}`}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }
 
