@@ -82,6 +82,7 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 | `DEMO_ENABLED`                                                                  | `true` for the public "Try the demo" button                                                                                                         |
 | `HITPAY_API_KEY`, `HITPAY_SALT`                                                 | Paying for plans by QR Ph: HitPay → Developers (the API key, and the webhook's salt). See "Plans and payments" below                                |
 | `HITPAY_SANDBOX`                                                                | `true` while testing with HitPay's sandbox; `false` with the live account                                                                           |
+| `HITPAY_PAYMENT_METHODS`                                                        | Empty in production (QR Ph). `card` with the sandbox, which has no QR Ph                                                                            |
 | `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`           | Where owners pay for a plan, shown on Plan & billing. Leave empty what you don't use                                                                |
 | `PAYMENT_CONTACT`                                                               | Where owners send the receipt screenshot: an email address or a link (e.g. your Facebook page). All payment variables empty: "Paid plans open soon" |
 
@@ -101,9 +102,9 @@ Prices and limits are in `config/plans.php`.
 
 Owners pay on Plan & billing: they pick a plan and 1, 3, 6 or 12 months, scan a QR Ph code on HitPay's page with GCash, Maya or their bank app, and the plan switches on by itself. HitPay charges 1% or ₱20 per payment (whichever is higher) and pays out the next day.
 
-1. **Try it in the sandbox first.** Make a HitPay sandbox account (test money only). In its dashboard, **Developers → API Keys**: copy the API key. **Developers → Webhooks**: add the endpoint `https://your-domain/webhooks/hitpay` with the event `payment_request.completed` (and `payment_request.failed`), and copy its **salt**.
-2. Set `HITPAY_API_KEY`, `HITPAY_SALT` and `HITPAY_SANDBOX=true`, and pay for a plan from a test shop.
-3. **Go live** once HitPay has verified your business: do step 1 again in the live dashboard, then set the live `HITPAY_API_KEY` and `HITPAY_SALT` and `HITPAY_SANDBOX=false`.
+1. **Try it in the sandbox first** (test money only). HitPay's sandbox has **no QR Ph**, and its accounts must be **Singapore** businesses, so make a separate sandbox account at https://dashboard.sandbox.hit-pay.com with Singapore as the country (your live account stays Philippine). In it: **Settings → Payment Methods**, turn on cards; **Developers → API Keys**, copy the API key; **Developers → Webhooks**, add the endpoint `https://your-domain/webhooks/hitpay` with the event `payment_request.completed` (and `payment_request.failed`), and copy its **salt**.
+2. Set `HITPAY_API_KEY`, `HITPAY_SALT`, `HITPAY_SANDBOX=true` and `HITPAY_PAYMENT_METHODS=card`, and pay for a plan from a test shop with HitPay's test card.
+3. **Go live** once HitPay has verified your (Philippine) business: do step 1 again in the live dashboard (turn on QR Ph there), then set the live `HITPAY_API_KEY` and `HITPAY_SALT`, `HITPAY_SANDBOX=false`, and remove `HITPAY_PAYMENT_METHODS` (QR Ph is the default). Make one real ₱299 payment for your own shop to check QR Ph itself; refund it from HitPay's dashboard if you like.
 
 On your computer HitPay can't reach the webhook, but paying still works: when HitPay sends you back, the app asks HitPay whether it was paid.
 

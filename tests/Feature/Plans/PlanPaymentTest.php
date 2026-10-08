@@ -101,6 +101,15 @@ describe('starting a payment', function () {
             && str_contains($request['purpose'], 'Basic, 3 months: Juan Barbershop'));
     });
 
+    test('HITPAY_PAYMENT_METHODS can change how owners pay (the sandbox has no QR Ph)', function () {
+        config(['services.hitpay.payment_methods' => ['card']]);
+        hitPayCreates();
+
+        startPayment($this)->assertRedirect(CHECKOUT_URL);
+
+        Http::assertSent(fn (Request $request) => $request['payment_methods'] === ['card']);
+    });
+
     test('in an Inertia visit, the browser goes to HitPay\'s page', function () {
         hitPayCreates();
 

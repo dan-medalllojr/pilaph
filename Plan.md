@@ -390,6 +390,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web push |
 | `HITPAY_API_KEY`, `HITPAY_SALT` | Paying for plans by QR Ph (HitPay → Developers: the API key, and the webhook's salt). Server only. Empty: the manual steps below |
 | `HITPAY_SANDBOX` | `true` (default): HitPay's sandbox, test payments only. `false` in production once the live account is verified |
+| `HITPAY_PAYMENT_METHODS` | HitPay's names, comma-separated; empty = QR Ph (`qrph_netbank`). HitPay's sandbox has no QR Ph and must be a Singapore account, so test there with `card` |
 | `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`, `PAYMENT_CONTACT` | Only while HitPay isn't set up: shown on Plan & billing as where to send GCash or Maya and the receipt. All empty: "Paid plans open soon" |
 
 Keep `.env.example` in sync with this table.

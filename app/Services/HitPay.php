@@ -14,8 +14,16 @@ use Illuminate\Support\Facades\Http;
  */
 class HitPay
 {
-    /** QR Ph, HitPay's name for it in the API. */
-    public const QR_PH = 'qrph_netbank';
+    /**
+     * How owners can pay (config services.hitpay.payment_methods): QR Ph
+     * (`qrph_netbank`) unless HITPAY_PAYMENT_METHODS says otherwise.
+     *
+     * @return list<string>
+     */
+    public function paymentMethods(): array
+    {
+        return array_values(array_filter((array) config('services.hitpay.payment_methods'), is_string(...)));
+    }
 
     public function configured(): bool
     {

@@ -48,7 +48,7 @@ class StartPlanPayment
             $request = $this->hitPay->createPaymentRequest([
                 'amount' => $payment->amount,
                 'currency' => 'PHP',
-                'payment_methods' => [HitPay::QR_PH],
+                'payment_methods' => $this->hitPay->paymentMethods(),
                 'purpose' => sprintf('PilaPH %s, %d %s: %s', $plan->label(), $months, $months === 1 ? 'month' : 'months', $business->name),
                 'reference_number' => $payment->id,
                 'email' => $owner->email,

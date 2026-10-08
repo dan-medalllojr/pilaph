@@ -67,6 +67,9 @@ return [
         // HitPay's sandbox (test payments, no real money) unless this is
         // exactly HITPAY_SANDBOX=false; empty or missing stays in the sandbox.
         'sandbox' => env('HITPAY_SANDBOX') !== false,
+        // How owners can pay, as HitPay names them, comma-separated. QR Ph
+        // unless set: HitPay's sandbox has no QR Ph, so it tests with "card".
+        'payment_methods' => array_values(array_filter(array_map(trim(...), explode(',', (string) (env('HITPAY_PAYMENT_METHODS') ?: 'qrph_netbank'))))),
     ],
 
     // Owner sign-in with Google. Google sends people back to /auth/google/callback
