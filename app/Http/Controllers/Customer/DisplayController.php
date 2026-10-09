@@ -23,6 +23,7 @@ class DisplayController extends Controller
             'display' => $display->forBusiness($business),
             'stateUrl' => route('display.state', $token),
             'branding' => $business->limits()->branding,
+            'isDemo' => $business->is_demo,
         ]);
     }
 

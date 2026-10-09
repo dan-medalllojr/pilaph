@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { Maximize, Volume2, VolumeX } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import DemoShopNotice from '@/components/demo-shop-notice';
 import { useLiveState, useNow } from '@/hooks/use-live-state';
 import { playTones } from '@/lib/chime';
 import type {
@@ -41,6 +42,8 @@ type Props = {
     stateUrl: string;
     /** False on paid plans: no PilaPH name in the corner. */
     branding: boolean;
+    /** The public demo's sample shop, which anyone can edit. */
+    isDemo: boolean;
 };
 
 /**
@@ -52,6 +55,7 @@ export default function Display({
     display: initial,
     stateUrl,
     branding,
+    isDemo,
 }: Props) {
     const [gone, setGone] = useState(false);
     const [highlight, setHighlight] = useState<{
@@ -174,6 +178,8 @@ export default function Display({
                     <FullscreenButton />
                 </div>
             </header>
+
+            {isDemo && <DemoShopNotice tv />}
 
             <main className="grid min-h-0 flex-1 gap-[2.5vmin] portrait:grid-rows-[1fr_auto] landscape:grid-cols-[1fr_minmax(0,32%)]">
                 <section className="flex min-h-0 flex-col gap-[2vmin]">

@@ -52,6 +52,8 @@ class JoinController extends Controller
             // and the shop's plan has texts left this month.
             'textsEnabled' => Messaging::canText() && $usage->textsLeft($business) > 0,
             'branding' => $business->limits()->branding,
+            // Anyone trying the demo can edit its shop: say it isn't a real one.
+            'isDemo' => $business->is_demo,
         ]);
     }
 
