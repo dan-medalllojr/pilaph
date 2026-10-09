@@ -40,7 +40,7 @@ describe('without email', function () {
             'email' => 'juan@example.com',
             'password' => 'A-very-long-Passw0rd!',
             'password_confirmation' => 'A-very-long-Passw0rd!',
-        ])->assertSessionHasErrors(['email' => 'Sign up with Google for now. Signing up with email is coming soon.']);
+        ])->assertSessionHasErrors(['email' => 'Sign up with your Google account.']);
 
         expect(User::where('email', 'juan@example.com')->exists())->toBeFalse();
     });
@@ -110,6 +110,21 @@ describe('without texts', function () {
             ->assertInertia(fn (Assert $page) => $page->where('textsEnabled', true));
         $this->get(route('home'))->assertInertia(fn (Assert $page) => $page->where('textsAvailable', true));
     });
+});
+
+test('on a developer\'s computer, MESSAGING_LIKE_PRODUCTION shows what production shows', function () {
+    config([
+        'app.messaging_like_production' => true,
+        'mail.default' => 'log',
+        'services.sms.driver' => 'log',
+        'services.google.client_id' => 'google-client',
+        'services.google.client_secret' => 'google-secret',
+    ]);
+    $business = Business::factory()->create();
+
+    $this->get(route('register'))->assertInertia(fn (Assert $page) => $page->where('canSignUpWithEmail', false));
+    $this->get(route('login'))->assertInertia(fn (Assert $page) => $page->where('canResetPassword', false));
+    $this->get(route('queue.join', $business))->assertInertia(fn (Assert $page) => $page->where('textsEnabled', false));
 });
 
 test('on a developer\'s computer, emails and texts go to the log, so everything stays on', function () {

@@ -21,10 +21,11 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
-        // No email service: the confirmation would never arrive (the page
-        // shows only Google then; this stops a hand-made request).
+        // No email service: the confirmation would never arrive, so sign-up
+        // is Google only (the page shows only Google; this stops a hand-made
+        // request).
         if (! Messaging::emailSignUpOpen()) {
-            throw ValidationException::withMessages(['email' => __('Sign up with Google for now. Signing up with email is coming soon.')]);
+            throw ValidationException::withMessages(['email' => __('Sign up with your Google account.')]);
         }
 
         Validator::make($input, [

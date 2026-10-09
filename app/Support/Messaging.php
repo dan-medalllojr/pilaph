@@ -9,18 +9,19 @@ use App\Http\Controllers\Auth\GoogleController;
  * email service (MAIL_MAILER=log) or an SMS service (SMS_DRIVER=log), nothing
  * is delivered, so the app stops promising it: no email sign-up (Google
  * only), no password reset by email, no email change, and no phone field or
- * texts. On a developer's computer both stay on, writing to the log.
+ * texts. On a developer's computer both stay on, writing to the log, unless
+ * MESSAGING_LIKE_PRODUCTION is on.
  */
 final class Messaging
 {
     public static function canEmail(): bool
     {
-        return ! app()->isProduction() || ! in_array(config('mail.default'), ['log', 'array'], true);
+        return ! self::likeProduction() || ! in_array(config('mail.default'), ['log', 'array'], true);
     }
 
     public static function canText(): bool
     {
-        return ! app()->isProduction() || config('services.sms.driver') !== 'log';
+        return ! self::likeProduction() || config('services.sms.driver') !== 'log';
     }
 
     /**
@@ -31,5 +32,10 @@ final class Messaging
     public static function emailSignUpOpen(): bool
     {
         return self::canEmail() || ! GoogleController::isConfigured();
+    }
+
+    private static function likeProduction(): bool
+    {
+        return app()->isProduction() || (bool) config('app.messaging_like_production');
     }
 }

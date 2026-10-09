@@ -30,6 +30,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Emails and Texts Like Production
+    |--------------------------------------------------------------------------
+    |
+    | On a developer's computer, emails and texts written to the log count as
+    | sent. Turn this on to see what production shows without an email or SMS
+    | service instead: Google-only sign-up, no phone field (App\Support\Messaging).
+    |
+    */
+
+    'messaging_like_production' => (bool) env('MESSAGING_LIKE_PRODUCTION', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

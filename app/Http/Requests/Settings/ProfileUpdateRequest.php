@@ -29,7 +29,7 @@ class ProfileUpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.in' => __("Your email can't be changed yet: confirming a new one needs email, which PilaPH can't send yet."),
+            'email.in' => __("Your email can't be changed: it's the one you sign in with."),
         ];
     }
 }
