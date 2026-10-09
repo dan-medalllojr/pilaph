@@ -28,6 +28,7 @@ const features = [
     {
         icon: MessageSquareText,
         title: 'A text when it’s almost their turn',
+        needsTexts: true,
         text: 'An SMS when they’re near the front, and another when it’s their turn (Basic and Pro plans).',
     },
     {
@@ -75,7 +76,7 @@ export default function Welcome({
     /** Owners pay by QR Ph in the app (else by sending GCash or Maya). */
     online: boolean;
 }) {
-    const { auth } = usePage().props;
+    const { auth, textsAvailable } = usePage().props;
 
     return (
         <>
@@ -146,20 +147,26 @@ export default function Welcome({
                     </section>
 
                     <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {features.map((feature) => (
-                            <div
-                                key={feature.title}
-                                className="grid content-start gap-2 rounded-xl border p-5"
-                            >
-                                <feature.icon className="size-5 text-emerald-600 dark:text-emerald-400" />
-                                <h2 className="font-semibold">
-                                    {feature.title}
-                                </h2>
-                                <p className="text-sm text-muted-foreground">
-                                    {feature.text}
-                                </p>
-                            </div>
-                        ))}
+                        {features
+                            .filter(
+                                (feature) =>
+                                    textsAvailable ||
+                                    !('needsTexts' in feature),
+                            )
+                            .map((feature) => (
+                                <div
+                                    key={feature.title}
+                                    className="grid content-start gap-2 rounded-xl border p-5"
+                                >
+                                    <feature.icon className="size-5 text-emerald-600 dark:text-emerald-400" />
+                                    <h2 className="font-semibold">
+                                        {feature.title}
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        {feature.text}
+                                    </p>
+                                </div>
+                            ))}
                     </section>
 
                     <section className="grid items-center gap-10 lg:grid-cols-[1.2fr_1fr]">

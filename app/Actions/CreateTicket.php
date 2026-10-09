@@ -8,6 +8,7 @@ use App\Models\Ticket;
 use App\Services\OwnerAlerts;
 use App\Services\PlanUsage;
 use App\Services\QueueEvents;
+use App\Support\Messaging;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -56,8 +57,9 @@ class CreateTicket
         // change while today's customers join.
         $monthlyLimitReached = $this->usage->joinsClosedForMonth($business);
 
-        // No texts on this plan: don't keep a number we'd never use.
-        if ($business->limits()->monthlySms === 0) {
+        // No texts on this plan, or texts can't be sent at all: don't keep a
+        // number we'd never use.
+        if ($business->limits()->monthlySms === 0 || ! Messaging::canText()) {
             $phone = null;
         }
 

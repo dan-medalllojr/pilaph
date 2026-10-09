@@ -14,12 +14,32 @@ import { store } from '@/routes/register';
 type Props = {
     passwordRules: string;
     canSignInWithGoogle: boolean;
+    /** False while PilaPH can't send email (the confirmation would never arrive). */
+    canSignUpWithEmail: boolean;
 };
 
 export default function Register({
     passwordRules,
     canSignInWithGoogle,
+    canSignUpWithEmail,
 }: Props) {
+    if (!canSignUpWithEmail) {
+        return (
+            <>
+                <Head title="Register" />
+                <GoogleSignInButton label="Sign up with Google" />
+                <p className="text-center text-sm text-muted-foreground">
+                    Sign up with your Google account. Signing up with email is
+                    coming soon.
+                </p>
+                <div className="text-center text-sm text-muted-foreground">
+                    Already have an account?{' '}
+                    <TextLink href={login()}>Log in</TextLink>
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Head title="Register" />

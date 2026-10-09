@@ -397,6 +397,18 @@ describe('HitPay\'s webhook', function () {
         expect($this->business->fresh()->plan_expires_at->toDateString())->toBe('2027-01-15');
     });
 
+    test('it needs no CSRF token, even with the check on as in production', function () {
+        // Tests normally skip the CSRF check; switch it on like production.
+        app()['env'] = 'production';
+        $payment = pendingPayment($this->business);
+
+        hitPayWebhook($this, hitPayRecord($payment))->assertNoContent();
+        expect($payment->fresh()->status)->toBe(PaymentStatus::Paid);
+
+        // Any other form without a token is still refused.
+        $this->post(route('plan.payments.store'), ['plan' => 'basic', 'months' => 1])->assertStatus(419);
+    });
+
     test('an unsigned or wrongly signed request is refused', function (?string $salt) {
         $payment = pendingPayment($this->business);
 

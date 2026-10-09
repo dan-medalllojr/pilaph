@@ -3,6 +3,7 @@
 namespace App\Concerns;
 
 use App\Models\User;
+use App\Support\Messaging;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
@@ -19,6 +20,20 @@ trait ProfileValidationRules
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
         ];
+    }
+
+    /**
+     * Without an email service, an owner can't change their email: the new
+     * one would need confirming, the email never arrives, and they'd be
+     * locked out of their dashboard.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function unchangedEmailRules(User $user): array
+    {
+        return Messaging::canEmail()
+            ? []
+            : [Rule::in([$user->email])];
     }
 
     /**

@@ -26,7 +26,9 @@ Realtime is on by default; nothing to set up. The app only uses public Broadcast
 
 ## 2. Email (account verification and password reset)
 
-Emails go through [Resend](https://resend.com)'s API (Laravel's built-in `resend` mailer).
+**No email yet?** Leave `MAIL_MAILER=log`. In production the app then stops promising emails: sign-up is **Google only** (an email sign-up's confirmation would never arrive), the log-in page has no "Forgot your password?", and owners can't change their email. All of it comes back by itself once an email service is set. Likewise, with `SMS_DRIVER=log` the join page has no phone field and the landing page doesn't promise texts.
+
+Emails go through [Resend](https://resend.com)'s API (Laravel's built-in `resend` mailer). Resend needs a domain you own (it can be just for email; the site can stay on its Railway address). Railway blocks SMTP, so Gmail's SMTP isn't an option there.
 
 1. In Resend, **Domains → Add Domain**, add the DNS records it shows at your domain registrar, and wait for **Verified**. Without a verified domain, Resend only delivers to your own Resend account's inbox, so owners couldn't verify their email.
 2. **API Keys → Create API Key** (sending access is enough).

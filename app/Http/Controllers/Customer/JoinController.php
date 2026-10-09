@@ -10,6 +10,7 @@ use App\Models\Ticket;
 use App\Services\PlanUsage;
 use App\Services\PublicQueueState;
 use App\Services\ShopPhotos;
+use App\Support\Messaging;
 use App\Support\PhilippinePhone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,8 +48,9 @@ class JoinController extends Controller
             'existingTicket' => $existing?->only(['id', 'code']),
             // Kept when a paid plan ends, but shown again only after renewing.
             'photoUrl' => $business->limits()->photo ? $photos->url($business) : null,
-            // No texts on the shop's plan (or none left this month): no phone field.
-            'textsEnabled' => $usage->textsLeft($business) > 0,
+            // A phone field only when texts can be sent (Messaging::canText())
+            // and the shop's plan has texts left this month.
+            'textsEnabled' => Messaging::canText() && $usage->textsLeft($business) > 0,
             'branding' => $business->limits()->branding,
         ]);
     }

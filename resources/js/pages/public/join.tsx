@@ -20,7 +20,7 @@ type Props = {
     qrToken: string | null;
     existingTicket: { id: string; code: string } | null;
     photoUrl: string | null;
-    /** The shop's plan sends texts (and has some left this month). */
+    /** Texts can be sent and the shop's plan has some left this month. */
     textsEnabled: boolean;
 };
 
