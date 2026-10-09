@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Controllers\Auth\GoogleController;
+use App\Support\Messaging;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -50,7 +51,8 @@ class FortifyServiceProvider extends ServiceProvider
     private function configureViews(): void
     {
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
-            'canResetPassword' => Features::enabled(Features::resetPasswords()),
+            // The reset link is emailed: only when emails reach people.
+            'canResetPassword' => Features::enabled(Features::resetPasswords()) && Messaging::canEmail(),
             'canSignInWithGoogle' => GoogleController::isConfigured(),
             'status' => $request->session()->get('status'),
         ]));
@@ -63,6 +65,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/forgot-password', [
             'status' => $request->session()->get('status'),
+            'canEmail' => Messaging::canEmail(),
         ]));
 
         Fortify::verifyEmailView(fn (Request $request) => Inertia::render('auth/verify-email', [
@@ -72,6 +75,8 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::registerView(fn () => Inertia::render('auth/register', [
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
             'canSignInWithGoogle' => GoogleController::isConfigured(),
+            // Without email, the confirmation never arrives: Google only.
+            'canSignUpWithEmail' => Messaging::emailSignUpOpen(),
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/two-factor-challenge'));
