@@ -8,6 +8,7 @@ use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -47,6 +48,18 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             Inertia::flash('toast', ['type' => 'error', 'message' => $conflict->getMessage()]);
+
+            return back();
+        });
+
+        // Too many changes or tries in a minute (a form, not a page visit):
+        // say so in place, instead of an error page over the app.
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if (! $request->header('X-Inertia') || $request->isMethodSafe()) {
+                return null;
+            }
+
+            Inertia::flash('toast', ['type' => 'error', 'message' => __("That's too many tries in a minute. Please wait a moment and try again.")]);
 
             return back();
         });

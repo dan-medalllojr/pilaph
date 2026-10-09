@@ -60,6 +60,20 @@ test('the reset runs hourly, and only while the demo is on', function () {
     expect($event?->expression)->toBe('0 * * * *');
 });
 
+test('the demo shop\'s public pages say it isn\'t a real business', function () {
+    $this->artisan('demo:reset', ['--force' => true])->assertSuccessful();
+    $shop = Business::query()->where('is_demo', true)->sole();
+    $ticket = Ticket::query()->where('business_id', $shop->id)->where('queue_date', $shop->today())->firstOrFail();
+    $real = Business::factory()->create();
+
+    $this->get(route('queue.join', $shop))->assertInertia(fn (Assert $page) => $page->where('isDemo', true));
+    $this->get(route('tickets.show', $ticket))->assertInertia(fn (Assert $page) => $page->where('isDemo', true));
+    $this->get(route('display.show', $shop->display_token))->assertInertia(fn (Assert $page) => $page->where('isDemo', true));
+
+    $this->get(route('queue.join', $real))->assertInertia(fn (Assert $page) => $page->where('isDemo', false));
+    $this->get(route('display.show', $real->display_token))->assertInertia(fn (Assert $page) => $page->where('isDemo', false));
+});
+
 describe('with the demo on', function () {
     beforeEach(fn () => config(['demo.enabled' => true]));
 
