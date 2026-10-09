@@ -48,6 +48,13 @@ class HandleInertiaRequests extends Middleware
                 // Signed in as the shared demo owner (shows the demo banner).
                 'active' => $request->user()?->isDemo() ?? false,
             ],
+            // "Support the developer" on owner pages (config/support.php); not in the demo.
+            'support' => function () use ($request) {
+                $user = $request->user();
+                $qr = config('support.qr_url');
+
+                return $user?->business !== null && ! $user->isDemo() && is_string($qr) ? ['qr_url' => $qr] : null;
+            },
             // Public by design: browsers need it to subscribe to push alerts.
             'webPushKey' => fn () => $request->user() !== null ? config('webpush.vapid.public_key') : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

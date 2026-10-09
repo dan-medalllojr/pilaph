@@ -16,6 +16,8 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             /** The public demo (config/demo.php). */
             demo: { enabled: boolean; active: boolean };
+            /** "Support the developer" QR on owner pages; null when off or in the demo. */
+            support: { qr_url: string } | null;
             /** VAPID public key for push alerts; null for guests. */
             webPushKey: string | null;
             [key: string]: unknown;

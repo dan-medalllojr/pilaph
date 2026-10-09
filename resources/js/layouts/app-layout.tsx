@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import DemoBanner from '@/components/demo-banner';
+import SupportDeveloper from '@/components/support-developer';
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
 import { registerServiceWorker } from '@/lib/push';
 import type { BreadcrumbItem } from '@/types';
@@ -21,6 +22,7 @@ export default function AppLayout({
         <AppLayoutTemplate breadcrumbs={breadcrumbs}>
             <DemoBanner />
             {children}
+            <SupportDeveloper />
         </AppLayoutTemplate>
     );
 }
