@@ -37,21 +37,27 @@ Route::middleware('throttle:10,1')->group(function () {
 });
 
 // Customer pages (no login). The ticket's UUID link is the customer's identity.
-Route::get('q/{business:slug}', [JoinController::class, 'show'])->name('queue.join');
+Route::get('q/{business:slug}', [JoinController::class, 'show'])
+    ->middleware('throttle:public-pages')
+    ->name('queue.join');
 Route::post('q/{business:slug}/tickets', [JoinController::class, 'store'])
     ->middleware('throttle:join')
     ->name('queue.tickets.store');
-Route::get('q/{business:slug}/state', QueueStateController::class)->name('queue.state');
+Route::get('q/{business:slug}/state', QueueStateController::class)
+    ->middleware('throttle:public-pages')
+    ->name('queue.state');
 
 // TV display at the shop. The short token is the link's secret (it shows the QR code).
-Route::where(['token' => '[a-z0-9]{12}'])->group(function () {
+Route::where(['token' => '[a-z0-9]{12}'])->middleware('throttle:public-pages')->group(function () {
     Route::get('tv/{token}', [DisplayController::class, 'show'])->name('display.show');
     Route::get('tv/{token}/state', [DisplayController::class, 'state'])->name('display.state');
 });
 
 Route::whereUuid('ticket')->group(function () {
-    Route::get('t/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
-    Route::get('t/{ticket}/state', [TicketController::class, 'state'])->name('tickets.state');
+    Route::middleware('throttle:public-pages')->group(function () {
+        Route::get('t/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+        Route::get('t/{ticket}/state', [TicketController::class, 'state'])->name('tickets.state');
+    });
     Route::post('t/{ticket}/cancel', [TicketController::class, 'cancel'])
         ->middleware('throttle:20,1')
         ->name('tickets.cancel');
