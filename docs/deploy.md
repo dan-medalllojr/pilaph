@@ -82,6 +82,7 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 | `SEMAPHORE_API_KEY`                                                             | semaphore.co → Account → API                                                                                                                                                                                                 |
 | `SEMAPHORE_SENDER_NAME`                                                         | Empty until Semaphore approves your sender name (an unapproved name makes every text fail)                                                                                                                                   |
 | `DEMO_ENABLED`                                                                  | `true` for the public "Try the demo" button                                                                                                                                                                                  |
+| `SUPPORT_QR_URL`                                                                | Optional: "Support the developer" QR at the bottom of owner pages, e.g. `/images/support-qr.png` (a file in `public/images/`) or an `https://` image address. Empty: hidden                                                  |
 
 ## 5. After the first deploy
 
