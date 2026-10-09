@@ -18,6 +18,8 @@ declare module '@inertiajs/core' {
             demo: { enabled: boolean; active: boolean };
             /** "Support the developer" QR on owner pages; null when off or in the demo. */
             support: { qr_url: string } | null;
+            /** Customers can get texts (an SMS service is set up). */
+            textsAvailable: boolean;
             /** VAPID public key for push alerts; null for guests. */
             webPushKey: string | null;
             [key: string]: unknown;

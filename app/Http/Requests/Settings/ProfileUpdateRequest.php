@@ -17,6 +17,19 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return $this->profileRules($this->user()->id);
+        $rules = $this->profileRules($this->user()->id);
+        $rules['email'] = [...$rules['email'], ...$this->unchangedEmailRules($this->user())];
+
+        return $rules;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'email.in' => __("Your email can't be changed: it's the one you sign in with."),
+        ];
     }
 }

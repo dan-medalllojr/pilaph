@@ -7,6 +7,7 @@ use App\Models\Business;
 use App\Models\Ticket;
 use App\Services\OwnerAlerts;
 use App\Services\QueueEvents;
+use App\Support\Messaging;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -48,6 +49,11 @@ class CreateTicket
         // 2. Only people who scanned the shop's current QR code may join.
         if ($qrToken === null || ! hash_equals($business->qr_token, $qrToken)) {
             $this->reject('k', 'Scan the QR code at the shop to join the queue.');
+        }
+
+        // Texts can't be sent: don't keep a number we'd never use.
+        if (! Messaging::canText()) {
+            $phone = null;
         }
 
         $waitingAfterJoin = 0;

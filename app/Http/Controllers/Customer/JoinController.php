@@ -9,6 +9,7 @@ use App\Models\Business;
 use App\Models\Ticket;
 use App\Services\PublicQueueState;
 use App\Services\ShopPhotos;
+use App\Support\Messaging;
 use App\Support\PhilippinePhone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,8 @@ class JoinController extends Controller
             'qrToken' => $token !== '' && hash_equals($business->qr_token, $token) ? $token : null,
             'existingTicket' => $existing?->only(['id', 'code']),
             'photoUrl' => $photos->url($business),
+            // No phone field while texts can't be sent (Messaging::canText()).
+            'textsEnabled' => Messaging::canText(),
         ]);
     }
 

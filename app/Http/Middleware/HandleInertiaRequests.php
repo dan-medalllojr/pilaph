@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Messaging;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -55,6 +56,8 @@ class HandleInertiaRequests extends Middleware
 
                 return $user?->business !== null && ! $user->isDemo() && is_string($qr) ? ['qr_url' => $qr] : null;
             },
+            // Whether customers can get texts (the landing page only promises them then).
+            'textsAvailable' => fn () => Messaging::canText(),
             // Public by design: browsers need it to subscribe to push alerts.
             'webPushKey' => fn () => $request->user() !== null ? config('webpush.vapid.public_key') : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

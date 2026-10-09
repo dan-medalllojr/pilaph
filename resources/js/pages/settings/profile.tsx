@@ -18,10 +18,13 @@ type PageProps = {
 export default function Profile({
     mustVerifyEmail,
     hasPassword,
+    canChangeEmail,
     status,
 }: {
     mustVerifyEmail: boolean;
     hasPassword: boolean;
+    /** False while PilaPH can't send email (a new email couldn't be confirmed). */
+    canChangeEmail: boolean;
     status?: string;
 }) {
     const { auth } = usePage<PageProps>().props;
@@ -77,9 +80,16 @@ export default function Profile({
                                     defaultValue={auth.user.email}
                                     name="email"
                                     required
+                                    readOnly={!canChangeEmail}
                                     autoComplete="username"
                                     placeholder="Email address"
                                 />
+                                {!canChangeEmail && (
+                                    <p className="text-sm text-muted-foreground">
+                                        Your email can&apos;t be changed:
+                                        it&apos;s the one you sign in with.
+                                    </p>
+                                )}
 
                                 <InputError
                                     className="mt-2"
@@ -88,6 +98,7 @@ export default function Profile({
                             </div>
 
                             {mustVerifyEmail &&
+                                canChangeEmail &&
                                 auth.user.email_verified_at === null && (
                                     <div>
                                         <p className="-mt-4 text-sm text-muted-foreground">
