@@ -26,7 +26,9 @@ Realtime is on by default; nothing to set up. The app only uses public Broadcast
 
 ## 2. Email (account verification and password reset)
 
-**No email yet?** Leave `MAIL_MAILER=log`. In production the app then stops promising emails: sign-up is **Google only** (an email sign-up's confirmation would never arrive), the log-in page has no "Forgot your password?", and owners can't change their email. All of it comes back by itself once an email service is set. Likewise, with `SMS_DRIVER=log` the join page has no phone field and the landing page doesn't promise texts.
+**PilaPH runs without email** (decided 2026-10-09: Railway blocks SMTP, and Resend needs a paid domain). Leave `MAIL_MAILER=log`. In production the app then sends no emails and promises none: sign-up is **Google only** (an email sign-up's confirmation would never arrive), the log-in page has no "Forgot your password?", and owners can't change their email. An owner who forgets a password uses **Continue with Google** with the same email; otherwise, set one for them in Railway's shell with `php artisan user:password <email>`. Likewise, with `SMS_DRIVER=log` the join page has no phone field and the landing page doesn't promise texts.
+
+The rest of this section is only for adding email later; everything above comes back by itself once an email service is set.
 
 Emails go through [Resend](https://resend.com)'s API (Laravel's built-in `resend` mailer). Resend needs a domain you own (it can be just for email; the site can stay on its Railway address). Railway blocks SMTP, so Gmail's SMTP isn't an option there.
 

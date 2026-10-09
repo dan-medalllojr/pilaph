@@ -86,9 +86,8 @@ export default function Profile({
                                 />
                                 {!canChangeEmail && (
                                     <p className="text-sm text-muted-foreground">
-                                        Changing your email isn&apos;t available
-                                        yet: a new email needs confirming, and
-                                        PilaPH can&apos;t send email yet.
+                                        Your email can&apos;t be changed:
+                                        it&apos;s the one you sign in with.
                                     </p>
                                 )}
 

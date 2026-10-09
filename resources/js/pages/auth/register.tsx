@@ -29,8 +29,8 @@ export default function Register({
                 <Head title="Register" />
                 <GoogleSignInButton label="Sign up with Google" />
                 <p className="text-center text-sm text-muted-foreground">
-                    Sign up with your Google account. Signing up with email is
-                    coming soon.
+                    Sign up with your Google account. There&apos;s no password
+                    to remember.
                 </p>
                 <div className="text-center text-sm text-muted-foreground">
                     Already have an account?{' '}
@@ -148,5 +148,5 @@ export default function Register({
 
 Register.layout = {
     title: 'Create an account',
-    description: 'Enter your details below to create your account',
+    description: 'Create your account to set up your shop',
 };

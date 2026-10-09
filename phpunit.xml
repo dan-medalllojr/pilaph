@@ -37,6 +37,7 @@
         <env name="SUPABASE_URL" value=""/>
         <env name="SUPABASE_SERVICE_ROLE_KEY" value=""/>
         <env name="SMS_DRIVER" value="log"/>
+        <env name="MESSAGING_LIKE_PRODUCTION" value="false"/>
         <env name="SEMAPHORE_API_KEY" value=""/>
         <env name="SEMAPHORE_SENDER_NAME" value=""/>
         <env name="DEMO_ENABLED" value="false"/>

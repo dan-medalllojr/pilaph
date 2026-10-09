@@ -22,12 +22,12 @@ export default function ForgotPassword({
             <>
                 <Head title="Forgot password" />
                 <p className="text-center text-sm text-muted-foreground">
-                    Resetting a password by email isn&apos;t available yet. If
-                    you signed up with Google, use{' '}
+                    PilaPH doesn&apos;t send password-reset emails. On the
+                    log-in page, use{' '}
                     <span className="font-medium text-foreground">
                         Continue with Google
                     </span>{' '}
-                    on the log-in page; you don&apos;t need a password.
+                    with the same email address; you don&apos;t need a password.
                 </p>
                 <div className="text-center text-sm text-muted-foreground">
                     <TextLink href={login()}>Back to log in</TextLink>
