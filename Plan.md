@@ -302,6 +302,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 - **Wait shown before joining:** customers see the estimated wait first and can decide not to join.
 - **Spam:** rate limits per IP and phone, honeypot field, one active ticket per device/phone, and a QR token in the join URL (optionally rotated daily, so only people who scanned the code that day can join). Owner can bulk-remove fake tickets.
 - **Refetch storms:** public broadcasts include `waiting_codes` so customer pages update locally; public state endpoints cached 2–3 seconds; randomized reconnect delay; slow polling fallback paused when hidden.
+- **Public pages rate limit** (`throttle:public-pages`, added 2026-10-09): the join, ticket and TV pages and their `/state` endpoints allow 300 requests a minute per IP and page, and 1,200 a minute per IP in all. Generous because a shop's phones often share one Wi-Fi address; it stops one machine from hammering the server (anyone can send a fake signal on a public channel, which makes that shop's pages refetch). The ticket state isn't cached on purpose: a stale "waiting" could hide the moment a customer is called.
 - **Supabase Realtime limits:** the free tier caps concurrent connections and messages. Check current limits before demos; upgrade or switch to Pusher if they become a problem.
 
 ## SMS (Semaphore)
@@ -334,6 +335,9 @@ The join page shows the current estimated wait **before** joining, so customers 
 - When `rotate_qr_daily` is on, the QR token changes every night (scheduled command). Because a printed poster would go stale, the TV display shows the current QR code (it does in every mode, while joining is open); businesses that only use a printed poster keep rotation off.
 - The TV display link has its own secret token, since the display shows the QR code. The owner can reset it.
 - Supabase service-role key lives only in Laravel's `.env`; the browser gets only the anon key.
+- **Security headers** on every response (`SecurityHeaders` middleware, added 2026-10-09): `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'` (no other site can frame the dashboard and trick a tap on "Call next" or "Pay"), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` (a ticket's address is that customer's key, so it never leaves in a Referer), and, over HTTPS, `Strict-Transport-Security`. No full Content-Security-Policy yet: the Inertia and Vite setup would need nonces.
+- Session cookies: `SESSION_SECURE_COOKIE=true` in production, so they only travel over HTTPS.
+- Dependencies: `composer audit` and `npm audit` were clean on 2026-10-09 (`concurrently`, a development tool, moved to devDependencies; `shell-quote` updated). `vite-plus` stays at 0.3.0: 0.3.3 fixes a warning in its formatter's worker pool, which only runs at build time, but needs a `vp migrate` of the Vite alias first.
 - Google sign-in: accounts are matched by Google ID, then by email. Google has verified the email, so an existing **verified** account with that email is linked; an **unverified** one is refused (whoever created it never proved they own the email, and linking would let them back in with its password). Owners with two-factor codes still enter one after Google.
 - Owners without a password confirm sensitive actions (security settings, deleting the account) with the same Google account instead.
 
@@ -347,7 +351,7 @@ The join page shows the current estimated wait **before** joining, so customers 
   2. **Composer stage:** `composer install --no-dev --optimize-autoloader`.
   3. **Runtime stage:** PHP 8.3+ with Nginx + PHP-FPM (a Laravel-friendly base image such as `serversideup/php` is fine), extensions `pdo_pgsql`, `bcmath`, `intl`, `opcache`.
 - **supervisord** runs three processes in the one container:
-  - Nginx + PHP-FPM (web)
+  - Nginx + PHP-FPM (web). PHP-FPM runs up to `PHP_FPM_MAX_CHILDREN` requests at once (12 by default, `docker/php-fpm.conf`; PHP's own default of 5 let a few slow requests, such as a payment talking to HitPay, hold everyone up). Each may hold a database connection, as may the queue worker and the scheduler, so keep `PHP_FPM_MAX_CHILDREN + 2` at or below Supabase's pooler pool size.
   - `php artisan queue:work --tries=3 --max-time=3600`
   - `php artisan schedule:work`
 - Nginx listens on the `PORT` environment variable that Railway provides.

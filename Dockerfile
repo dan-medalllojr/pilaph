@@ -47,11 +47,14 @@ FROM base AS runtime
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
-    LOG_CHANNEL=stderr
+    LOG_CHANNEL=stderr \
+    PHP_FPM_MAX_CHILDREN=12
 
 COPY --from=build /app /app
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
+# After the image's own zz-docker.conf, so these settings win.
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/zz-pilaph.conf
 COPY docker/start.sh /usr/local/bin/start
 RUN chmod +x /usr/local/bin/start \
     && chown -R www-data:www-data storage bootstrap/cache

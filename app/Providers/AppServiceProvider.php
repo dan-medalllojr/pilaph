@@ -63,6 +63,16 @@ class AppServiceProvider extends ServiceProvider
 
             return $limits;
         });
+
+        // The public queue, ticket and TV pages and the live state they check.
+        // A phone checks a few times a minute (more when the queue moves), and
+        // a shop's phones often share one Wi-Fi address, so: 300 a minute per
+        // address and page, and 1,200 a minute per address in all. Enough for a
+        // busy shop; it stops one machine from hammering the server.
+        RateLimiter::for('public-pages', fn (Request $request): array => [
+            Limit::perMinute(300)->by('public:'.$request->ip().'|'.$request->path()),
+            Limit::perMinute(1200)->by('public-ip:'.$request->ip()),
+        ]);
     }
 
     /**
