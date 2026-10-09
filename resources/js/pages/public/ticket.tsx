@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import TicketController from '@/actions/App/Http/Controllers/Customer/TicketController';
+import DemoShopNotice from '@/components/demo-shop-notice';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -39,8 +40,11 @@ const isActive = (ticket: TicketState) =>
 
 export default function TicketPage({
     ticket: initial,
+    isDemo,
 }: {
     ticket: TicketState;
+    /** The public demo's sample shop, which anyone can edit. */
+    isDemo: boolean;
 }) {
     // When the owner taps Recall, show that they're calling again.
     const [recalledAt, setRecalledAt] = useState<number | null>(
@@ -169,6 +173,8 @@ export default function TicketPage({
                     Your ticket number
                 </p>
             </header>
+
+            {isDemo && <DemoShopNotice />}
 
             <StatusCard
                 ticket={ticket}

@@ -73,6 +73,14 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(300)->by('public:'.$request->ip().'|'.$request->path()),
             Limit::perMinute(1200)->by('public-ip:'.$request->ip()),
         ]);
+
+        // Changes on owner pages: 60 a minute per account and address. Running
+        // even a busy queue takes a few a minute; this stops a script from
+        // flooding the database, e.g. with services in the shared demo. Per
+        // address too, so one demo visitor can't use up the others' limit.
+        RateLimiter::for('owner-changes', fn (Request $request): Limit => $request->isMethodSafe()
+            ? Limit::none()
+            : Limit::perMinute(60)->by('owner:'.($request->user()->id ?? 'guest').'|'.$request->ip()));
     }
 
     /**

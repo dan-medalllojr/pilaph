@@ -17,9 +17,12 @@ class DisplayController extends Controller
 {
     public function show(string $token, DisplayState $display): Response
     {
+        $business = $this->business($token);
+
         return Inertia::render('public/display', [
-            'display' => $display->forBusiness($this->business($token)),
+            'display' => $display->forBusiness($business),
             'stateUrl' => route('display.state', $token),
+            'isDemo' => $business->is_demo,
         ]);
     }
 

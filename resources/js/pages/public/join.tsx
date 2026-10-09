@@ -2,6 +2,7 @@ import { Form, Head, Link } from '@inertiajs/react';
 import { Clock, QrCode, Ticket, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import JoinController from '@/actions/App/Http/Controllers/Customer/JoinController';
+import DemoShopNotice from '@/components/demo-shop-notice';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,8 @@ type Props = {
     photoUrl: string | null;
     /** False while PilaPH can't send texts: no phone field. */
     textsEnabled: boolean;
+    /** The public demo's sample shop, which anyone can edit. */
+    isDemo: boolean;
 };
 
 const closedMessages: Record<
@@ -44,6 +47,7 @@ export default function Join({
     existingTicket,
     photoUrl,
     textsEnabled,
+    isDemo,
 }: Props) {
     // On each change, refetch the (cached) public snapshot rather than trusting
     // the broadcast: anyone can send to a public channel.
@@ -75,6 +79,8 @@ export default function Join({
                     {business.name}
                 </h1>
             </header>
+
+            {isDemo && <DemoShopNotice />}
 
             <QueueSummary queue={queue} />
 

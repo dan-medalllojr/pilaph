@@ -48,6 +48,8 @@ class JoinController extends Controller
             'photoUrl' => $photos->url($business),
             // No phone field while texts can't be sent (Messaging::canText()).
             'textsEnabled' => Messaging::canText(),
+            // Anyone trying the demo can edit its shop: say it isn't a real one.
+            'isDemo' => $business->is_demo,
         ]);
     }
 

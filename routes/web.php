@@ -63,7 +63,7 @@ Route::whereUuid('ticket')->group(function () {
         ->name('tickets.cancel');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'throttle:owner-changes'])->group(function () {
     // First run after sign-up: name the shop.
     Route::get('dashboard/setup', [BusinessSetupController::class, 'create'])->name('business.setup');
     Route::post('dashboard/setup', [BusinessSetupController::class, 'store'])->name('business.store');
