@@ -386,6 +386,7 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Server only; used by `SupabaseApi` (Realtime broadcasts, Storage) |
 | `SUPABASE_STORAGE_BUCKET` | Public bucket for shop photos (`shop-photos`); empty keeps them on the local disk |
 | `DEMO_ENABLED` | `true` shows "Try the demo" |
+| `SUPPORT_QR_URL` | "Support the developer" at the bottom of owner pages (not the demo, not customer pages): a QR image path under `public/` or an `https://` address; the image loads only when the owner opens it. Empty: hidden. Added 2026-10-09, while PilaPH is free |
 | `MAIL_MAILER=resend`, `RESEND_API_KEY`, `MAIL_FROM_ADDRESS` | Verification and password-reset emails through Resend's API (`resend/resend-php`); the from address must be on a domain verified in Resend. Any SMTP service works too |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Build arguments for the frontend |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | "Continue with Google" (hidden when empty). In Google Cloud Console, add `<APP_URL>/auth/google/callback` as an authorized redirect URI for every domain |

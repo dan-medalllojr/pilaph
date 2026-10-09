@@ -19,6 +19,8 @@ declare module '@inertiajs/core' {
             demo: { enabled: boolean; active: boolean };
             /** A banner about the shop's plan (trial ending, a limit reached). */
             planNotice: PlanNotice | null;
+            /** "Support the developer" QR on owner pages; null when off or in the demo. */
+            support: { qr_url: string } | null;
             /** VAPID public key for push alerts; null for guests. */
             webPushKey: string | null;
             [key: string]: unknown;

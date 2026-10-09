@@ -87,6 +87,7 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 | `HITPAY_PAYMENT_METHODS`                                                        | Empty in production (QR Ph). `card` with the sandbox, which has no QR Ph                                                                                                                                                     |
 | `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`           | Where owners pay for a plan, shown on Plan & billing. Leave empty what you don't use                                                                                                                                         |
 | `PAYMENT_CONTACT`                                                               | Where owners send the receipt screenshot: an email address or a link (e.g. your Facebook page). All payment variables empty: "Paid plans open soon"                                                                          |
+| `SUPPORT_QR_URL`                                                                | Optional: "Support the developer" QR at the bottom of owner pages, e.g. `/images/support-qr.png` (a file in `public/images/`) or an `https://` image address. Empty: hidden                                                  |
 
 ## 5. After the first deploy
 
