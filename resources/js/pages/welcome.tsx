@@ -51,7 +51,7 @@ const features = [
 const customerSteps = [
     {
         image: '/images/landing/phone-join.webp',
-        alt: 'The join page: choose a service and enter your name',
+        alt: "The join page: the shop's photo, then choose a service and enter your name",
         title: 'Scan and join',
     },
     {
