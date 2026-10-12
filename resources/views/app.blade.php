@@ -34,6 +34,21 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
+        {{-- The preview card when a link is shared on Facebook, Messenger, Viber
+             and the like. The address is without its query, so a join link's
+             daily QR key never ends up in a preview. --}}
+        <meta name="description" content="A virtual queue for barbershops, clinics, repair shops and any business with a daily line. Customers scan a QR code, get a number on their phone and come back when it's their turn.">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="PilaPH">
+        <meta property="og:title" content="PilaPH: no more crowded waiting areas">
+        <meta property="og:description" content="Customers scan a QR code, get a number on their phone and see their place in line live. Their phone rings when it's their turn.">
+        <meta property="og:url" content="{{ url()->current() }}">
+        <meta property="og:image" content="{{ asset('images/og-image.jpg') }}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="PilaPH: a customer's ticket number and place in line, and the 'It's your turn!' screen">
+        <meta name="twitter:card" content="summary_large_image">
+
         {{-- The owner app is installable (start page: dashboard). Customer pages
              and the TV display aren't, so customers aren't offered to install it. --}}
         @unless (request()->is('q/*', 't/*', 'tv/*'))
