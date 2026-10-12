@@ -35,7 +35,7 @@ const closedMessages: Record<
         'The queue is paused right now. Please check again in a little while.',
     after_cutoff: (cutoff) =>
         cutoff
-            ? `The queue closed for today at ${cutoff}.`
+            ? `The queue closed for today at ${phTime(cutoff)}.`
             : 'The queue is closed for today.',
     full: () =>
         'The queue is full right now. Please try again in a little while.',
@@ -65,20 +65,34 @@ export default function Join({
         <>
             <Head title={`Join the queue at ${business.name}`} />
 
-            {photoUrl && (
-                <img
-                    src={photoUrl}
-                    alt={business.name}
-                    className="-mx-4 -mt-6 aspect-video w-[calc(100%+2rem)] max-w-none object-cover sm:mx-0 sm:mt-0 sm:w-full sm:rounded-xl"
-                />
+            {photoUrl ? (
+                <header className="relative -mx-4 -mt-6 overflow-hidden sm:mx-0 sm:mt-0 sm:rounded-xl">
+                    <img
+                        src={photoUrl}
+                        alt=""
+                        className="aspect-video w-full object-cover"
+                    />
+                    {/* Darkens the bottom of any photo so the name stays readable. */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/55 via-45% to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 grid gap-1 p-4 text-white [text-shadow:0_1px_8px_rgb(0_0_0/0.6)] sm:p-5">
+                        <p className="text-sm text-white/85">
+                            {queueStatus(business)}
+                        </p>
+                        <h1 className="text-2xl font-semibold tracking-tight">
+                            {business.name}
+                        </h1>
+                    </div>
+                </header>
+            ) : (
+                <header className="grid gap-1">
+                    <p className="text-sm text-muted-foreground">
+                        {queueStatus(business)}
+                    </p>
+                    <h1 className="text-2xl font-semibold tracking-tight">
+                        {business.name}
+                    </h1>
+                </header>
             )}
-
-            <header className="grid gap-1">
-                <p className="text-sm text-muted-foreground">Virtual queue</p>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                    {business.name}
-                </h1>
-            </header>
 
             {isDemo && <DemoShopNotice />}
 
@@ -121,6 +135,37 @@ export default function Join({
             ) : null}
         </>
     );
+}
+
+const closedStatus: Record<JoinClosedReason, string> = {
+    paused: 'Queue paused',
+    after_cutoff: 'Closed for today',
+    full: 'Queue full',
+};
+
+/** The line above the shop name, e.g. "Queue open · Cutoff 9:30 PM". */
+function queueStatus(business: PublicQueue['business']): string {
+    if (business.closed_reason) {
+        return closedStatus[business.closed_reason];
+    }
+
+    return business.join_cutoff_time
+        ? `Queue open · Cutoff ${phTime(business.join_cutoff_time)}`
+        : 'Queue open';
+}
+
+// Read as UTC so the visitor's own clock can't shift the shop's time.
+const timeFormat = new Intl.DateTimeFormat('en-PH', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+});
+
+/** A shop time like "21:30" (always Manila time) as "9:30 PM". */
+function phTime(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+
+    return timeFormat.format(Date.UTC(2000, 0, 1, hours, minutes));
 }
 
 function QueueSummary({ queue }: { queue: PublicQueue }) {
