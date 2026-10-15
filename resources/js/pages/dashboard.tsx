@@ -1,7 +1,14 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { ChevronRight, Megaphone, Smartphone, UserX } from 'lucide-react';
+import {
+    ChevronRight,
+    Megaphone,
+    Smartphone,
+    UserPlus,
+    UserX,
+} from 'lucide-react';
 import { useState } from 'react';
 import QueueController from '@/actions/App/Http/Controllers/Owner/QueueController';
+import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,10 +21,13 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AlertsBanner from '@/components/alerts-banner';
 import LiveIndicator from '@/components/live-indicator';
 import { useLiveState, useNow } from '@/hooks/use-live-state';
+import { uuid } from '@/lib/queue';
 import { dashboard } from '@/routes';
 import { state as dashboardState } from '@/routes/dashboard';
 import { index as counterIndex } from '@/routes/counters';
@@ -98,25 +108,202 @@ function QueueHeader({ queue, live }: { queue: OwnerQueue; live: boolean }) {
                 <LiveIndicator live={live} />
             </div>
 
-            <Form {...QueueController.toggle.form()}>
-                {({ processing }) => (
+            <div className="flex flex-wrap gap-2">
+                <AddWalkIn services={queue.services} />
+
+                <Form {...QueueController.toggle.form()}>
+                    {({ processing }) => (
+                        <>
+                            <input
+                                type="hidden"
+                                name="is_open"
+                                value={business.is_open ? '0' : '1'}
+                            />
+                            <Button
+                                type="submit"
+                                variant={
+                                    business.is_open ? 'outline' : 'default'
+                                }
+                                disabled={processing}
+                            >
+                                {business.is_open
+                                    ? 'Pause queue'
+                                    : 'Open queue'}
+                            </Button>
+                        </>
+                    )}
+                </Form>
+            </div>
+        </header>
+    );
+}
+
+type WalkInAdded = { code: string; service: string };
+
+/**
+ * For a customer without a phone or internet: staff pick the service, add
+ * them, and tell them the number shown.
+ */
+function AddWalkIn({ services }: { services: OwnerQueue['services'] }) {
+    const [open, setOpen] = useState(false);
+    const [added, setAdded] = useState<WalkInAdded | null>(null);
+    // A new key per walk-in: a double tap still adds them once.
+    const [idempotencyKey, setIdempotencyKey] = useState(uuid);
+
+    const startOver = () => {
+        setAdded(null);
+        setIdempotencyKey(uuid());
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next);
+
+                if (!next && added) {
+                    startOver();
+                }
+            }}
+        >
+            <DialogTrigger asChild>
+                <Button variant="outline" disabled={services.length === 0}>
+                    <UserPlus />
+                    Add walk-in
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                {added ? (
                     <>
-                        <input
-                            type="hidden"
-                            name="is_open"
-                            value={business.is_open ? '0' : '1'}
-                        />
-                        <Button
-                            type="submit"
-                            variant={business.is_open ? 'outline' : 'default'}
-                            disabled={processing}
+                        <DialogTitle>Added to the line</DialogTitle>
+                        <div className="py-2 text-center">
+                            <p className="font-mono text-6xl font-bold tracking-tight">
+                                {added.code}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                {added.service}
+                            </p>
+                        </div>
+                        <DialogDescription>
+                            Tell the customer their number, or write it down for
+                            them. It shows on the TV when it&apos;s their turn.
+                        </DialogDescription>
+                        <DialogFooter className="gap-2">
+                            <Button
+                                variant="secondary"
+                                type="button"
+                                onClick={startOver}
+                            >
+                                Add another
+                            </Button>
+                            <DialogClose asChild>
+                                <Button type="button">Done</Button>
+                            </DialogClose>
+                        </DialogFooter>
+                    </>
+                ) : (
+                    <>
+                        <DialogTitle>Add a walk-in</DialogTitle>
+                        <DialogDescription>
+                            For a customer without a phone or internet. They
+                            join the end of the line, even while the queue is
+                            paused or full.
+                        </DialogDescription>
+                        <Form
+                            {...QueueController.addWalkIn.form()}
+                            disableWhileProcessing
+                            onSuccess={(page) => {
+                                const walkIn = page.flash.walkIn as
+                                    | WalkInAdded
+                                    | undefined;
+
+                                if (walkIn) {
+                                    setAdded(walkIn);
+                                }
+                            }}
+                            className="grid gap-5"
                         >
-                            {business.is_open ? 'Pause queue' : 'Open queue'}
-                        </Button>
+                            {({ processing, errors }) => (
+                                <>
+                                    <fieldset className="grid gap-2">
+                                        <legend className="mb-2 text-sm font-medium">
+                                            Service
+                                        </legend>
+                                        {services.map((service) => (
+                                            <label
+                                                key={service.id}
+                                                className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 has-checked:border-primary has-checked:bg-primary/5"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="service_id"
+                                                    value={service.id}
+                                                    required
+                                                    defaultChecked={
+                                                        services.length === 1
+                                                    }
+                                                    className="size-4 accent-primary"
+                                                />
+                                                <span className="flex-1 font-medium">
+                                                    {service.name}
+                                                </span>
+                                            </label>
+                                        ))}
+                                        <InputError
+                                            message={errors.service_id}
+                                        />
+                                    </fieldset>
+
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="walk_in_name">
+                                            Name{' '}
+                                            <span className="font-normal text-muted-foreground">
+                                                (optional)
+                                            </span>
+                                        </Label>
+                                        <Input
+                                            id="walk_in_name"
+                                            name="customer_name"
+                                            minLength={2}
+                                            maxLength={60}
+                                            autoComplete="off"
+                                            placeholder="So you can call them"
+                                        />
+                                        <InputError
+                                            message={errors.customer_name}
+                                        />
+                                    </div>
+
+                                    <input
+                                        type="hidden"
+                                        name="idempotency_key"
+                                        value={idempotencyKey}
+                                    />
+
+                                    <DialogFooter className="gap-2">
+                                        <DialogClose asChild>
+                                            <Button
+                                                variant="secondary"
+                                                type="button"
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </DialogClose>
+                                        <Button
+                                            type="submit"
+                                            disabled={processing}
+                                        >
+                                            {processing && <Spinner />}
+                                            Add to the line
+                                        </Button>
+                                    </DialogFooter>
+                                </>
+                            )}
+                        </Form>
                     </>
                 )}
-            </Form>
-        </header>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -212,7 +399,8 @@ function CounterCard({
                     </p>
                     <p className="truncate">{current.customer_name}</p>
                     <p className="text-xs text-muted-foreground">
-                        {current.service} · called{' '}
+                        {current.service}
+                        {current.walk_in && ' · walk-in'} · called{' '}
                         {minutesAgo(current.called_at, now)}
                     </p>
                 </div>
@@ -369,7 +557,9 @@ function WaitingList({
                                         {ticket.customer_name}
                                     </span>
                                     <span className="block text-xs text-muted-foreground">
-                                        {ticket.service} · waiting{' '}
+                                        {ticket.service}
+                                        {ticket.walk_in && ' · walk-in'} ·
+                                        waiting{' '}
                                         {minutesAgo(ticket.joined_at, now)}
                                     </span>
                                 </span>
