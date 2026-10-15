@@ -6,6 +6,7 @@ use App\Enums\TicketStatus;
 use App\Exceptions\QueueConflict;
 use App\Models\Counter;
 use App\Models\Ticket;
+use App\Services\PlanUsage;
 use App\Services\QueueEvents;
 use App\Services\QueueTexts;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +21,7 @@ class CallNextTicket
     public function __construct(
         private QueueEvents $events,
         private QueueTexts $texts,
+        private PlanUsage $usage,
     ) {}
 
     /**
@@ -35,6 +37,11 @@ class CallNextTicket
     {
         if (! $counter->is_active) {
             throw new QueueConflict("{$counter->name} is switched off. Switch it on under Counters first.");
+        }
+
+        // Past the plan's counter limit (e.g. after a trial ended).
+        if ($this->usage->isCounterLocked($counter)) {
+            throw new QueueConflict("{$counter->name} can't call customers on the {$counter->business->currentPlan()->label()} plan. Upgrade under Plan & billing, or switch other counters off.");
         }
 
         // 1. One "Call next" at a time per counter.

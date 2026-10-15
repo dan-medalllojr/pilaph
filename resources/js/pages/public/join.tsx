@@ -21,7 +21,7 @@ type Props = {
     qrToken: string | null;
     existingTicket: { id: string; code: string } | null;
     photoUrl: string | null;
-    /** False while PilaPH can't send texts: no phone field. */
+    /** Texts can be sent and the shop's plan has some left this month. */
     textsEnabled: boolean;
     /** The public demo's sample shop, which anyone can edit. */
     isDemo: boolean;
@@ -37,6 +37,8 @@ const closedMessages: Record<
         cutoff
             ? `The queue closed for today at ${phTime(cutoff)}.`
             : 'The queue is closed for today.',
+    monthly_limit: () =>
+        'Online joining is closed for now. Please ask the staff.',
     full: () =>
         'The queue is full right now. Please try again in a little while.',
 };
@@ -140,6 +142,7 @@ export default function Join({
 const closedStatus: Record<JoinClosedReason, string> = {
     paused: 'Queue paused',
     after_cutoff: 'Closed for today',
+    monthly_limit: 'Online joining closed',
     full: 'Queue full',
 };
 

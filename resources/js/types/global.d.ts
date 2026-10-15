@@ -1,5 +1,6 @@
 import type { Auth } from '@/types/auth';
 import type { CurrentBusiness } from '@/types/business';
+import type { PlanNotice } from '@/types/plan';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -16,6 +17,8 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             /** The public demo (config/demo.php). */
             demo: { enabled: boolean; active: boolean };
+            /** A banner about the shop's plan (trial ending, a limit reached). */
+            planNotice: PlanNotice | null;
             /** "Support the developer" QR on owner pages; null when off or in the demo. */
             support: { qr_url: string } | null;
             /** Customers can get texts (an SMS service is set up). */

@@ -11,9 +11,11 @@ import type { JoinQrCode } from '@/types';
 type Props = {
     business: { name: string; rotate_qr_daily: boolean };
     join: JoinQrCode;
+    /** False on paid plans: no PilaPH name on the poster. */
+    branding: boolean;
 };
 
-export default function QrPoster({ business, join }: Props) {
+export default function QrPoster({ business, join, branding }: Props) {
     return (
         <>
             <Head title="QR poster" />
@@ -96,7 +98,9 @@ export default function QrPoster({ business, join }: Props) {
                         </ol>
                     </div>
 
-                    <p className="text-xs text-neutral-400">PilaPH</p>
+                    {branding && (
+                        <p className="text-xs text-neutral-400">PilaPH</p>
+                    )}
                 </div>
             </div>
         </>

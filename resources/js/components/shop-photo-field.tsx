@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { ImagePlus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import Heading from '@/components/heading';
@@ -7,12 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { shrinkPhoto } from '@/lib/shrink-photo';
 import { destroy, store } from '@/routes/business/photo';
+import { show as planShow } from '@/routes/plan';
 
-/** The photo at the top of the customer join page. */
+/**
+ * The photo at the top of the customer join page. Part of the paid plans:
+ * after a plan ends the photo is kept, but hidden until it's renewed.
+ */
 export default function ShopPhotoField({
     photoUrl,
+    allowed,
 }: {
     photoUrl: string | null;
+    allowed: boolean;
 }) {
     const input = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState(false);
@@ -62,16 +68,26 @@ export default function ShopPhotoField({
             <Heading
                 variant="small"
                 title="Shop photo"
-                description="Shown at the top of the page customers see when they scan your QR code."
+                description={
+                    allowed
+                        ? 'Shown at the top of the page customers see when they scan your QR code.'
+                        : 'Comes with the Basic and Pro plans: shown at the top of the page customers see when they scan your QR code.'
+                }
             />
 
-            {photoUrl ? (
+            {photoUrl && (
                 <img
                     src={photoUrl}
                     alt="Your shop"
                     className="aspect-video w-full max-w-md rounded-lg border object-cover"
                 />
-            ) : (
+            )}
+            {photoUrl && !allowed && (
+                <p className="text-sm text-muted-foreground">
+                    Hidden from customers on your current plan.
+                </p>
+            )}
+            {!photoUrl && (
                 <div className="flex aspect-video w-full max-w-md flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-sm text-muted-foreground">
                     <ImagePlus className="size-6" />
                     No photo yet
@@ -92,15 +108,21 @@ export default function ShopPhotoField({
                         }
                     }}
                 />
-                <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => input.current?.click()}
-                >
-                    {busy && <Spinner />}
-                    {photoUrl ? 'Change photo' : 'Add a photo'}
-                </Button>
+                {allowed ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => input.current?.click()}
+                    >
+                        {busy && <Spinner />}
+                        {photoUrl ? 'Change photo' : 'Add a photo'}
+                    </Button>
+                ) : (
+                    <Button asChild variant="outline">
+                        <Link href={planShow()}>See plans</Link>
+                    </Button>
+                )}
                 {photoUrl && (
                     <Button
                         type="button"

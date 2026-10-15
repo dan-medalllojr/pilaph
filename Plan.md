@@ -118,6 +118,9 @@ Laravel sends broadcasts with a small `SupabaseBroadcaster` service: one `POST /
 | photo_path, photo_disk | nullable; the shop photo on the join page. `supabase` (public Storage bucket, `SUPABASE_STORAGE_BUCKET`) or `public` (local disk). A new random file name on every upload, so caches never show an old photo |
 | is_demo | bool; the public demo's sample shop (reset hourly, never sends SMS) |
 | timezone | default `Asia/Manila` |
+| plan | `free` \| `basic` \| `pro` (`App\Enums\Plan`); the plan paid for, set only by `php artisan plan:set` |
+| plan_expires_at | nullable; when the paid plan ends (null: it doesn't). After it, the shop is on Free |
+| trial_ends_at | nullable; new shops try the trial plan (Pro) until then |
 
 ### users
 Laravel default fields plus `business_id` (FK), `role` (`owner` | `staff`, enum) and `google_id` (nullable, unique; Google's account ID). `password` is nullable: owners who sign up with Google have none until they set one.
@@ -168,6 +171,20 @@ Constraints and indexes:
 ### push_subscriptions
 Created by the web push package's migration.
 
+### plan_payments
+One row per payment an owner starts for a plan (QR Ph via HitPay).
+
+| Field | Notes |
+|---|---|
+| id | UUID v4; also HitPay's `reference_number`, and in the return link HitPay sends the owner back to |
+| business_id, user_id | the shop, and the owner who paid (nullable) |
+| plan, months, amount, currency | `basic`/`pro`; 1, 3, 6 or 12; pesos (`897.00`); `PHP` |
+| status | `pending` \| `paid` \| `failed` \| `cancelled` (left unfinished and closed at HitPay when the owner chose something else) |
+| hitpay_request_id | unique; HitPay's payment request |
+| hitpay_payment_id | HitPay's payment, once paid |
+| checkout_url | HitPay's checkout page, to finish a payment left unfinished |
+| plan_ends_at, paid_at | set when paid |
+
 ---
 
 ## Routes
@@ -175,7 +192,9 @@ Created by the web push package's migration.
 ### Public (no login)
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/q/{business:slug}?k={qr_token}` | Join page: choose service, enter name, optional phone. Shows "Scan the QR code at the shop" if the token is missing or expired |
+| GET | `/` | Landing page, with a pricing section |
+| GET | `/pricing` | The plans, prices and common questions |
+| GET | `/q/{business:slug}?k={qr_token}` | Join page: choose service, enter name, optional phone (only on plans with texts). Shows "Scan the QR code at the shop" if the token is missing or expired |
 | POST | `/q/{business:slug}/tickets` | Create ticket, redirect to ticket page (rate-limited) |
 | GET | `/t/{ticket}` | Ticket page: number, position, ETA, live updates; a chime, vibration (Android) and a 🔔 tab title when called or recalled. Browsers allow sound only after a tap (there is no sound permission pop-up): the tap on "Get my ticket" counts, otherwise the page offers a "Turn on sound" button. The chime is a generated audio file, not Web Audio, because iPhones mute Web Audio when the silent switch is on |
 | POST | `/t/{ticket}/cancel` | Customer cancels |
@@ -183,6 +202,7 @@ Created by the web push package's migration.
 | GET | `/tv/{display_token}/state` | JSON for the display: counters with who they're serving, next 5 codes, waiting count, join QR code (null while joining is closed). No personal data |
 | GET | `/q/{business:slug}/state` | JSON snapshot without personal data (for refetch) |
 | GET | `/t/{ticket}/state` | JSON snapshot for one ticket |
+| POST | `/webhooks/hitpay` | HitPay's `payment_request.completed` / `.failed` webhook. No CSRF token; only a body whose `Hitpay-Signature` (HMAC-SHA256 with the webhook salt) matches is believed |
 
 ### Owner sign-in
 Fortify's routes (`/login`, `/register`, password reset, email verification, two-factor, passkeys) plus:
@@ -206,7 +226,10 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | POST | `/dashboard/queue/toggle` | Open or pause the queue |
 | resource | `/dashboard/services` | CRUD services |
 | resource | `/dashboard/counters` | CRUD counters |
-| GET | `/dashboard/stats?days=1\|7\|30` | Today / last 7 / last 30 days (shop's timezone): served of joined, average wait (joined to called), average service (called to done), no-shows with rate, busiest hours (joins per local hour), served per day, by service and by counter. No names or phones |
+| GET | `/dashboard/stats?days=1\|7\|30\|90\|180\|365` | Today or the last days (shop's timezone), up to the plan's history (longer periods lead to Plan & billing): served of joined, average wait (joined to called), average service (called to done), no-shows with rate, busiest hours (joins per local hour), served per day (per week over 3 and 6 months, per month over 12), by service and by counter. No names or phones |
+| GET | `/dashboard/plan` | Plan & billing: the plan, this month's usage, the plans and how to pay |
+| POST | `/dashboard/plan/payments` | Pay for a plan by QR Ph: `plan` (basic/pro) and `months` (1/3/6/12); sends the owner to HitPay's checkout (404 when HitPay isn't set up) |
+| GET | `/dashboard/plan/payments/{payment}` | Where HitPay sends the owner back: asks HitPay whether it was paid (the link's own `status` is never trusted) |
 | GET | `/dashboard/qr` | Printable QR poster for the join page (warns when the QR code changes nightly) |
 | GET | `/dashboard/display` | TV display link, setup steps, reset |
 | POST | `/dashboard/display/reset` | New TV link; screens on the old one show "This TV link no longer works" |
@@ -379,6 +402,10 @@ The join page shows the current estimated wait **before** joining, so customers 
 | `SMS_DRIVER` | `log` or `semaphore` |
 | `SEMAPHORE_API_KEY`, `SEMAPHORE_SENDER_NAME` | |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web push |
+| `HITPAY_API_KEY`, `HITPAY_SALT` | Paying for plans by QR Ph (HitPay → Developers: the API key, and the webhook's salt). Server only. Empty: the manual steps below |
+| `HITPAY_SANDBOX` | `true` (default): HitPay's sandbox, test payments only. `false` in production once the live account is verified |
+| `HITPAY_PAYMENT_METHODS` | HitPay's names, comma-separated; empty = QR Ph (`qrph_netbank`). HitPay's sandbox has no QR Ph and must be a Singapore account, so test there with `card` |
+| `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`, `PAYMENT_CONTACT` | Only while HitPay isn't set up: shown on Plan & billing as where to send GCash or Maya and the receipt. All empty: "Paid plans open soon" |
 
 Keep `.env.example` in sync with this table.
 
@@ -399,6 +426,36 @@ Keep `.env.example` in sync with this table.
 11. **Demo polish**: shop photo on the join page (from the Node version; needs Supabase Storage, since Railway's disk is wiped on every deploy), seeder with a sample barbershop, realistic Filipino names, and a live-looking queue; "Login as demo owner" button; README with screenshots; deploy to Railway connected to the production Supabase project.
     - Done as: a PilaPH landing page (replacing the starter kit's) with real product shots of the demo in device frames (`public/images/landing`, WebP, about 120 KB in all; below-the-fold images load lazily); `ResetDemoShop` builds Juan's Barbershop (4 services, 3 chairs, 14 days of history, 2 being served and 6 waiting) for `db:seed`, `demo:reset` (hourly while `DEMO_ENABLED`) and the first "Try the demo". The demo account has no password (the button is the only way in), its email is reserved, and `ProtectDemoAccount` blocks password, email, two-factor, passkey, account deletion, push alerts and photo uploads; its shop never texts. Its public join, ticket and TV pages say "Demo shop, not a real business" (added 2026-10-09): anyone can rename the sample shop and its services, so a visitor could otherwise write a scam message ("send ₱500 to…") and share the demo's link as if it were a real shop. Photos are shrunk to 1600 px JPEGs in the browser before upload (which also drops their GPS metadata). Deploy: `railway.json`, `docs/deploy.md`, and `laravel` merged into `main` through a pull request.
 
+12. **Plans and data retention**: a free plan and two paid ones, so busy shops pay for what they use, and data stays small.
+    - **Plans** (`config/plans.php`, the only place prices and limits live):
+
+      | | Free | Basic ₱299/mo | Pro ₱799/mo |
+      |---|---|---|---|
+      | Counters switched on at once | 1 | 3 | no limit |
+      | Customers per calendar month | 300 | no limit | no limit |
+      | SMS per calendar month | none (no phone field) | 300 | 1,000 |
+      | History kept (and longest stats period) | 30 days | 6 months | 12 months |
+      | Shop photo, no "PilaPH" name on customer pages, TV and poster | no | yes | yes |
+
+    - **Trial**: every new shop (and every shop that existed before plans) gets 14 days of Pro, with 50 texts instead of 1,000 since each text costs. Then Free, by itself; nothing is charged or deleted.
+    - **The plan in effect** (`Business::currentPlan()`): a paid plan until `plan_expires_at`, else the trial, else Free. The demo shop is always Pro. Limits are checked where things happen: `StoreCounterRequest`/`UpdateCounterRequest` (switching on a counter), `CallNextTicket` (counters past the limit after a downgrade are locked; the oldest keep working), `CreateTicket` (the monthly limit, and no phone number kept on a plan without texts), `QueueTexts` (stops at the month's texts, the called customer first; a soft limit, two counters at once can go one over), `UpdateShopPhotoRequest`, and `StatsController` (periods within the plan's history).
+    - **Monthly limits** (customers and texts) count by calendar month in the shop's timezone and reset on the 1st. Customers are counted by queue date; texts by the `*_sms_sent_at` claims on the month's tickets (a claim counts even if Semaphore then fails).
+    - **Monthly customer limit**: reaching it never closes joining in the middle of a day: joining closes from the next day (`joinClosedReason` = `monthly_limit`) until the 1st. Customers see only "Online joining is closed for now. Please ask the staff." (never the shop's plan); the TV shows the same. Staff can still add walk-ins (they count toward the month), so nobody is turned away.
+    - **Texts**: on a plan without texts, or once the month's texts are used up, the join page has no phone field. The called customer's text goes first, then the near-turn ones.
+    - **Counters after a downgrade**: the oldest active counters (by when they were added) up to the limit keep working; the others show "Locked" on the dashboard and can't Call next, but can still finish the customer they have (Done, No-show, Recall). Switching counters off frees places.
+    - **Photo after a downgrade**: kept, but hidden from customers until the shop is on a plan with photos again.
+    - **Owners see it**: a banner on owner pages (`PlanUsage::notice`) with one message, the first that applies, in this order: (1) joining closed or closing tomorrow for the monthly limit, (2) locked counters, (3) a paid plan that ended (for 30 days), (4) the trial or paid plan ending within 5 days, (5) texts used up or at 80%, (6) customers at 80%, (7) the trial ended in the last 7 days. Also a **Plan & billing** page (`/dashboard/plan`) with this month's usage, the plans and how to pay; locked periods on Stats; the limit on Counters.
+    - **Everyone sees it**: a pricing section on the landing page and `/pricing`, both from `Plan::catalog()`.
+    - **Paying online (QR Ph through HitPay)**, decided 2026-10-08: on Plan & billing the owner picks Basic or Pro and 1, 3, 6 or 12 months (no discount for longer; HitPay's QR Ph fee is 1% or ₱20, whichever is higher, so longer periods lose less), then **Pay ₱… with QR Ph**. `StartPlanPayment` records a `plan_payments` row and creates a HitPay payment request (`payment_methods[]=qrph_netbank`, `reference_number` = our payment ID, `redirect_url` = our return link) and the owner goes to HitPay's own checkout page, which shows the QR code; they scan it with GCash, Maya or a bank app. HitPay's `payment_request.completed` webhook (registered in its dashboard) switches the plan on (`CompletePlanPayment`), only if the signature, HitPay's request ID, our reference, the amount and the currency all match, and only once per payment. The return link never trusts its own `status=completed`: it asks HitPay (`GET /v1/payment-requests/{id}`), which also makes it work locally, where HitPay's webhook can't reach. A payment left unfinished shows "Continue paying" for a day. Paid payments are listed on Plan & billing. QR Ph can't charge automatically, so each period is a new payment; the "ends soon" and "ended" banners say **Pay now**.
+    - **When a paid plan ends after paying** (`ActivatePlan`, used by online payments and `plan:set`), so paying never loses days: the same plan still running → the months are added after it ends; the trial's plan (Pro) during the trial → they start when the trial ends; a dearer plan while a cheaper one runs (Basic → Pro) → it starts now and the unused cheaper days become days of the new plan at the same value (30 days of Basic ≈ 11 days of Pro); otherwise → from now. Owners can't buy a cheaper plan while a dearer one runs (until it ends), nor pay for a plan without an end date, nor pay more than 13 months ahead (`max_months_ahead`: a year, plus room to renew for a year during the last month; limits refunds, and keeps old prices from lasting for years). Paying twice for the same plan is fine: each payment adds its months. But one open payment per shop at a time, so nobody pays twice by accident (`StartPlanPayment`): pressing Pay again for the same plan and months within an hour (a double tap, the back button, a second tab) reopens the same HitPay checkout; choosing something else first cancels the unfinished payment at HitPay (status `cancelled`, so its QR code can't be paid); if HitPay can't cancel it because it was in fact paid, it's counted and no new payment starts; two presses at the same moment are serialised by a per-shop lock. A cancelled payment that was paid at that very moment still counts. `plan:set` has no such limits. The demo can't pay.
+    - **Without HitPay set up** (no `HITPAY_API_KEY`/`HITPAY_SALT`), Plan & billing shows the manual steps instead: send GCash or Maya (`PAYMENT_*` variables) with the shop's link name, and the admin runs `php artisan plan:set {link name or owner email} basic --months=1`. `plan:set … free` ends a plan or trial now; `--forever` gives a plan with no end date. `php artisan plan:list` shows every shop's plan, end date and this month's customers and texts.
+    - **Retention** (`data:prune`, nightly at 3:15 AM): customer names and phone numbers are erased 7 days after their queue day, and the texts sent to them (which hold both) are deleted; counts and times stay for the stats. Tickets older than the plan's history are deleted in batches of 1,000. After a paid plan ends, its longer history is kept for 30 more days, so renewing late loses nothing. It also removes expired database cache rows (the join rate limiter leaves one per visitor). Also nightly: `queue:prune-failed --hours=168` and `auth:clear-resets`.
+    - **Changing prices or limits**: edit `config/plans.php` only. Every shop gets the new limits at once (there are no per-shop limits), and the pricing pages update themselves.
+    - **Manual test cases** for paying (a real HitPay checkout, which the automated tests only pretend): [TEST_CASES.md](TEST_CASES.md).
+    - **Trying it locally**: `php artisan plan:set {link name} free|basic|pro --months=1` switches a shop between plans; `php artisan data:prune` runs the clean-up now (the scheduler only runs while `php artisan schedule:work` does; in production it always runs). Checked on 2026-10-08 with one test shop per plan and state: each plan's limits, banner, join page and stats periods behaved as above, and `data:prune` deleted exactly the tickets past each plan's history (no soft deletes: the rows are gone) and erased names and numbers older than 7 days.
+    - **Known gaps**: the text limit can go one over when two counters call at the same moment; an owner could get a second trial by signing up again with another email.
+    - Not done yet: official receipts or invoices (HitPay emails its own receipt), refunds from the app (do them in HitPay's dashboard, then `plan:set` to correct the plan), automatic monthly charging, a reminder email or push before a plan ends (the banner covers it), per-shop custom limits.
+
 ## Tests (Pest)
 - Two simultaneous joins never get the same number.
 - Two counters calling next at the same time never get the same ticket.
@@ -413,6 +470,7 @@ Keep `.env.example` in sync with this table.
 - Public broadcasts and public state endpoints never contain names or phone numbers.
 - The TV display needs its secret link, and a reset link stops working.
 - End of day closes only past days' tickets and rotates the QR code once per day.
+- Plans: the plan in effect (paid, ended, trial, demo), each limit, the banner's messages, `plan:set` and `plan:list`, and `data:prune` (erasing after 7 days, history per plan, the grace period after a plan ends).
 
 ## Coding conventions (for the AI assistant)
 - TypeScript in all React components; shared types in `resources/js/types`.
@@ -483,7 +541,7 @@ Naming: `App\Models\Service` is the business's service (Haircut, Consultation). 
 - Staff accounts (column exists; feature later).
 - Appointments or bookings (walk-in queue only).
 - Multi-language UI (English first; Tagalog/Cebuano later).
-- Payments.
+- Online payments (owners pay by GCash or Maya and the plan is switched on by hand; see phase 12).
 
 ## Growth path
 - When a business needs helpers on counters, enable `staff` role with limited permissions.

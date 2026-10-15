@@ -15,9 +15,16 @@ type Props = {
     business: BusinessSettings;
     joinUrl: string;
     photoUrl: string | null;
+    /** The plan includes a shop photo. */
+    photoAllowed: boolean;
 };
 
-export default function ShopSettings({ business, joinUrl, photoUrl }: Props) {
+export default function ShopSettings({
+    business,
+    joinUrl,
+    photoUrl,
+    photoAllowed,
+}: Props) {
     return (
         <>
             <Head title="Shop settings" />
@@ -29,7 +36,7 @@ export default function ShopSettings({ business, joinUrl, photoUrl }: Props) {
                 />
 
                 {/* Its own uploads, outside the settings form below. */}
-                <ShopPhotoField photoUrl={photoUrl} />
+                <ShopPhotoField photoUrl={photoUrl} allowed={photoAllowed} />
 
                 <Form
                     {...BusinessSettingsController.update.form()}

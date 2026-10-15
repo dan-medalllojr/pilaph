@@ -25,9 +25,11 @@ class CreateBusiness
                 return Business::query()->findOrFail($owner->business_id);
             }
 
-            $business = Business::create([
+            // Every new shop starts with a free trial of a paid plan.
+            $business = Business::query()->forceCreate([
                 'name' => $name,
                 'slug' => $this->uniqueSlug($name),
+                'trial_ends_at' => now()->addDays((int) config('plans.trial.days')),
             ]);
 
             $owner->forceFill([

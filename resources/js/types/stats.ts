@@ -1,6 +1,6 @@
 /** The owner's stats page (ShopStats). Counts and times only, no names. */
 export type ShopStats = {
-    /** 1 = today, 7 or 30 = the last days including today. */
+    /** 1 = today, else the last days including today (7, 30, 90, 180, 365). */
     days: number;
     from: string;
     to: string;
@@ -12,7 +12,11 @@ export type ShopStats = {
     average_service_minutes: number | null;
     /** Joins per hour of the day (shop's local time), first to last busy hour. */
     busiest_hours: { hour: number; joined: number }[];
-    served_per_day: { date: string; served: number }[];
+    /** Per day up to a month, then per week (Mondays) or month; dates are each one's first day. */
+    served_over_time: {
+        bucket: 'day' | 'week' | 'month';
+        points: { date: string; served: number }[];
+    };
     by_service: {
         name: string;
         prefix: string;
@@ -21,3 +25,6 @@ export type ShopStats = {
     }[];
     by_counter: { name: string; served: number }[];
 };
+
+/** A period on the stats page; longer than the plan keeps: not allowed. */
+export type StatsPeriod = { days: number; allowed: boolean };

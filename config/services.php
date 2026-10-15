@@ -58,6 +58,20 @@ return [
         'url' => 'https://api.semaphore.co/api/v4',
     ],
 
+    // Plan payments by QR Ph through HitPay (hitpayapp.com). The API key and
+    // the webhook's salt are in HitPay's dashboard under Developers. Leave
+    // empty to show the manual GCash/Maya steps instead (config/plans.php).
+    'hitpay' => [
+        'api_key' => env('HITPAY_API_KEY'),
+        'salt' => env('HITPAY_SALT'),
+        // HitPay's sandbox (test payments, no real money) unless this is
+        // exactly HITPAY_SANDBOX=false; empty or missing stays in the sandbox.
+        'sandbox' => env('HITPAY_SANDBOX') !== false,
+        // How owners can pay, as HitPay names them, comma-separated. QR Ph
+        // unless set: HitPay's sandbox has no QR Ph, so it tests with "card".
+        'payment_methods' => array_values(array_filter(array_map(trim(...), explode(',', (string) (env('HITPAY_PAYMENT_METHODS') ?: 'qrph_netbank'))))),
+    ],
+
     // Owner sign-in with Google. Google sends people back to /auth/google/callback
     // on whatever domain the app runs on; add each one in Google Cloud Console.
     'google' => [

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\Plan;
+use App\Support\PlanLimits;
 use Carbon\CarbonImmutable;
 use Database\Factories\BusinessFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -27,6 +29,9 @@ use Illuminate\Support\Str;
  * @property string|null $photo_path
  * @property string|null $photo_disk
  * @property string $timezone
+ * @property Plan $plan The plan paid for; see currentPlan() for the one in effect.
+ * @property CarbonImmutable|null $plan_expires_at
+ * @property CarbonImmutable|null $trial_ends_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
@@ -41,7 +46,8 @@ use Illuminate\Support\Str;
     'timezone',
 ])]
 // The QR token gates joining; only the owner's QR screens and the TV display
-// show it. The display token is the TV link's secret.
+// show it. The display token is the TV link's secret. The plan columns are
+// set only by the trial and `php artisan plan:set`, never from a form.
 #[Hidden(['qr_token', 'display_token'])]
 class Business extends Model
 {
@@ -112,16 +118,107 @@ class Business extends Model
     /**
      * Why new customers can't join right now, or null if they can.
      *
-     * @return 'paused'|'after_cutoff'|'full'|null
+     * @param  bool  $monthlyLimitReached  From PlanUsage::joinsClosedForMonth().
+     * @return 'paused'|'after_cutoff'|'monthly_limit'|'full'|null
      */
-    public function joinClosedReason(int $waitingCount): ?string
+    public function joinClosedReason(int $waitingCount, bool $monthlyLimitReached = false): ?string
     {
         return match (true) {
             ! $this->is_open => 'paused',
             $this->isPastJoinCutoff() => 'after_cutoff',
+            $monthlyLimitReached => 'monthly_limit',
             $this->max_waiting !== null && $waitingCount >= $this->max_waiting => 'full',
             default => null,
         };
+    }
+
+    /**
+     * The plan in effect now: a paid plan until it ends, else the trial while
+     * it lasts, else Free. The public demo shows everything.
+     */
+    public function currentPlan(): Plan
+    {
+        return match (true) {
+            $this->is_demo => Plan::Pro,
+            $this->hasPaidPlan() => $this->plan,
+            $this->onTrial() => self::trialPlan(),
+            default => Plan::Free,
+        };
+    }
+
+    /**
+     * What the shop can do now. A trial sends fewer texts than the plan it
+     * tries, since every text costs.
+     */
+    public function limits(): PlanLimits
+    {
+        $limits = $this->currentPlan()->limits();
+
+        return $this->onTrial()
+            ? $limits->withMonthlySms(min($limits->monthlySms, (int) config('plans.trial.monthly_sms')))
+            : $limits;
+    }
+
+    /**
+     * A paid plan that hasn't ended (no end date: it doesn't end).
+     */
+    public function hasPaidPlan(): bool
+    {
+        return $this->plan->isPaid()
+            && ($this->plan_expires_at === null || $this->plan_expires_at->isFuture());
+    }
+
+    public function onTrial(): bool
+    {
+        return ! $this->is_demo
+            && ! $this->hasPaidPlan()
+            && $this->trial_ends_at?->isFuture() === true;
+    }
+
+    /**
+     * A paid plan that ended; the shop is on Free until it's renewed.
+     */
+    public function planLapsed(): bool
+    {
+        return $this->plan->isPaid() && $this->plan_expires_at?->isPast() === true;
+    }
+
+    /**
+     * Days of ticket history to keep. After a paid plan ends, its longer
+     * history stays for the grace period, so renewing late loses nothing.
+     */
+    public function historyDaysKept(): int
+    {
+        $days = $this->limits()->historyDays;
+        $graceEnds = $this->plan_expires_at?->addDays((int) config('plans.grace_days'));
+
+        if ($this->planLapsed() && $graceEnds?->isFuture() === true) {
+            $days = max($days, $this->plan->limits()->historyDays);
+        }
+
+        return $days;
+    }
+
+    public static function trialPlan(): Plan
+    {
+        return Plan::from((string) config('plans.trial.plan'));
+    }
+
+    /**
+     * The trial as the pricing pages describe it: its plan, its length, and
+     * its texts (fewer than the plan's own).
+     *
+     * @return array{plan: string, days: int, texts: int}
+     */
+    public static function trialOffer(): array
+    {
+        $plan = self::trialPlan();
+
+        return [
+            'plan' => $plan->label(),
+            'days' => (int) config('plans.trial.days'),
+            'texts' => min($plan->limits()->monthlySms, (int) config('plans.trial.monthly_sms')),
+        ];
     }
 
     /**
@@ -157,6 +254,14 @@ class Business extends Model
     }
 
     /**
+     * @return HasMany<PlanPayment, $this>
+     */
+    public function planPayments(): HasMany
+    {
+        return $this->hasMany(PlanPayment::class);
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -170,6 +275,9 @@ class Business extends Model
             'rotate_qr_daily' => 'boolean',
             'is_demo' => 'boolean',
             'qr_token_date' => 'date',
+            'plan' => Plan::class,
+            'plan_expires_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
         ];
     }
 }

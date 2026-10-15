@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import CounterController from '@/actions/App/Http/Controllers/Owner/CounterController';
@@ -18,9 +18,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { index } from '@/routes/counters';
+import { show as planShow } from '@/routes/plan';
 import type { CounterItem } from '@/types';
 
-export default function Counters({ counters }: { counters: CounterItem[] }) {
+export default function Counters({
+    counters,
+    limit,
+    plan,
+}: {
+    counters: CounterItem[];
+    /** Counters switched on at once on the shop's plan; null: no limit. */
+    limit: number | null;
+    plan: string;
+}) {
+    // Switching a counter on past the limit: one message for the whole list.
+    const { errors } = usePage().props as { errors: Record<string, string> };
+
     return (
         <>
             <Head title="Counters" />
@@ -61,6 +74,22 @@ export default function Counters({ counters }: { counters: CounterItem[] }) {
                         </>
                     )}
                 </Form>
+
+                {limit !== null && (
+                    <p className="text-sm text-muted-foreground">
+                        The {plan} plan includes{' '}
+                        {limit === 1 ? '1 counter' : `${limit} counters`} at a
+                        time.{' '}
+                        <Link
+                            href={planShow()}
+                            className="font-medium text-foreground underline underline-offset-4"
+                        >
+                            See plans
+                        </Link>
+                    </p>
+                )}
+
+                <InputError message={errors.is_active} />
 
                 {counters.length === 0 ? (
                     <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">

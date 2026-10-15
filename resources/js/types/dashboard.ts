@@ -24,7 +24,13 @@ export type OwnerQueue = {
         closed_reason: JoinClosedReason | null;
         join_cutoff_time: string | null;
     };
-    counters: { id: number; name: string; current: OwnerTicket | null }[];
+    counters: {
+        id: number;
+        name: string;
+        /** Past the plan's counter limit: can't call the next customer. */
+        locked: boolean;
+        current: OwnerTicket | null;
+    }[];
     /** In line order. */
     waiting: OwnerTicket[];
     stats: {

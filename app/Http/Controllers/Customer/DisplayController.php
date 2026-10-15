@@ -22,6 +22,7 @@ class DisplayController extends Controller
         return Inertia::render('public/display', [
             'display' => $display->forBusiness($business),
             'stateUrl' => route('display.state', $token),
+            'branding' => $business->limits()->branding,
             'isDemo' => $business->is_demo,
         ]);
     }
