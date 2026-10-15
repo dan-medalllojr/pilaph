@@ -75,6 +75,7 @@ Route::middleware(['auth', 'verified', 'throttle:owner-changes'])->group(functio
         // Running today's queue.
         Route::get('state', [QueueController::class, 'state'])->name('dashboard.state');
         Route::post('counters/{counter}/call-next', [QueueController::class, 'callNext'])->name('dashboard.call-next');
+        Route::post('tickets/walk-in', [QueueController::class, 'addWalkIn'])->name('dashboard.tickets.walk-in');
         Route::post('tickets/bulk-remove', [QueueController::class, 'bulkRemove'])->name('dashboard.tickets.bulk-remove');
         Route::whereUuid('ticket')->group(function () {
             Route::post('tickets/{ticket}/done', [QueueController::class, 'done'])->name('dashboard.tickets.done');

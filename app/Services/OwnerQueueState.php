@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\TicketStatus;
 use App\Models\Business;
 use App\Models\Counter;
+use App\Models\Service;
 use App\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  * The owner dashboard's view of today's queue. Includes customer names (staff
  * call people by name) but never phone numbers, only whether there is one.
  *
- * @phpstan-type TicketRow array{id: string, code: string, customer_name: string, service: string, has_phone: bool, joined_at: string, called_at: string|null}
+ * @phpstan-type TicketRow array{id: string, code: string, customer_name: string, service: string, has_phone: bool, walk_in: bool, joined_at: string, called_at: string|null}
  */
 class OwnerQueueState
 {
@@ -22,7 +23,8 @@ class OwnerQueueState
      *     counters: list<array{id: int, name: string, current: TicketRow|null}>,
      *     waiting: list<TicketRow>,
      *     stats: array{waiting: int, served: int, no_shows: int, average_wait_minutes: int|null},
-     *     setup: array{active_services: int, active_counters: int}
+     *     setup: array{active_services: int, active_counters: int},
+     *     services: list<array{id: int, name: string}>
      * }
      */
     public function forBusiness(Business $business): array
@@ -71,6 +73,12 @@ class OwnerQueueState
             ->selectRaw('avg(extract(epoch from (called_at - joined_at))) as seconds')
             ->value('seconds');
 
+        // For adding a walk-in, in the join page's order.
+        $services = $business->services()
+            ->where('is_active', true)
+            ->orderBy('prefix')
+            ->get(['id', 'name']);
+
         return [
             'business' => [
                 'id' => $business->id,
@@ -93,9 +101,13 @@ class OwnerQueueState
                     : null,
             ],
             'setup' => [
-                'active_services' => $business->services()->where('is_active', true)->count(),
+                'active_services' => $services->count(),
                 'active_counters' => $counters->count(),
             ],
+            'services' => array_values($services->map(fn (Service $service) => [
+                'id' => $service->id,
+                'name' => $service->name,
+            ])->all()),
         ];
     }
 
@@ -110,6 +122,7 @@ class OwnerQueueState
             'customer_name' => $ticket->customer_name,
             'service' => $ticket->service->name,
             'has_phone' => $ticket->phone !== null,
+            'walk_in' => $ticket->walk_in,
             'joined_at' => $ticket->joined_at->toIso8601String(),
             'called_at' => $ticket->called_at?->toIso8601String(),
         ];
