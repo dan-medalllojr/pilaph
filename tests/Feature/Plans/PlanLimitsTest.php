@@ -11,6 +11,7 @@ use App\Notifications\TicketCalled;
 use App\Notifications\TicketNearTurn;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
@@ -165,6 +166,17 @@ describe('customers a month on the Free plan', function () {
 
         $this->travelTo(CarbonImmutable::parse('2026-11-01 08:00:00', 'Asia/Manila'));
         joinQueue($this->business)->assertSessionHasNoErrors();
+    });
+
+    test('staff can still add walk-ins, as the closed join page asks customers to do', function () {
+        customersOn($this->business, '2026-10-14', 300);
+
+        $this->actingAs($this->owner)->post(route('dashboard.tickets.walk-in'), [
+            'service_id' => $this->service->id,
+            'idempotency_key' => (string) Str::uuid(),
+        ])->assertSessionHasNoErrors();
+
+        expect(Ticket::query()->where('walk_in', true)->sole()->queue_date->toDateString())->toBe('2026-10-15');
     });
 
     test('last month\'s customers don\'t count', function () {
