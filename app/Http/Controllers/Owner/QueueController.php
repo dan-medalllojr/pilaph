@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Owner;
 
+use App\Actions\AddWalkIn;
 use App\Actions\BulkRemoveTickets;
 use App\Actions\CallNextTicket;
 use App\Actions\FinishTicket;
 use App\Actions\RecallTicket;
 use App\Actions\ToggleQueue;
 use App\Enums\TicketStatus;
+use App\Http\Requests\Owner\AddWalkInRequest;
 use App\Http\Requests\Owner\BulkRemoveTicketsRequest;
 use App\Http\Requests\Owner\CallNextRequest;
 use App\Http\Requests\Owner\ToggleQueueRequest;
@@ -84,6 +86,25 @@ class QueueController extends OwnerController
         $this->toast($recall->execute($ticket)
             ? ['success', __('Calling :code again.', ['code' => $ticket->code])]
             : ['info', __(':code is no longer being called.', ['code' => $ticket->code])]);
+
+        return to_route('dashboard');
+    }
+
+    /**
+     * A customer without a phone or internet: staff add them and tell them
+     * their number.
+     */
+    public function addWalkIn(AddWalkInRequest $request, AddWalkIn $addWalkIn): RedirectResponse
+    {
+        $ticket = $addWalkIn->execute(
+            business: $this->business($request),
+            serviceId: $request->integer('service_id'),
+            customerName: $request->filled('customer_name') ? $request->string('customer_name')->trim()->value() : null,
+            idempotencyKey: $request->string('idempotency_key')->value(),
+        );
+
+        // The dialog shows the number big, for the customer to see.
+        Inertia::flash('walkIn', ['code' => $ticket->code, 'service' => $ticket->service->name]);
 
         return to_route('dashboard');
     }
