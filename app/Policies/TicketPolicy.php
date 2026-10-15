@@ -18,6 +18,14 @@ class TicketPolicy
     }
 
     /**
+     * Adding a walk-in: queue work, open to anyone at the business.
+     */
+    public function create(User $user): bool
+    {
+        return $user->business_id !== null;
+    }
+
+    /**
      * Done, no-show and recall: queue work, open to anyone at the business.
      */
     public function update(User $user, Ticket $ticket): bool

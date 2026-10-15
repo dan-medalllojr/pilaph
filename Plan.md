@@ -152,11 +152,12 @@ Laravel default fields plus `business_id` (FK), `role` (`owner` | `staff`, enum)
 | code | e.g. `A-024` |
 | customer_name | |
 | phone | nullable, normalized to `639XXXXXXXXX` |
+| walk_in | bool; added by staff for a customer without a phone or internet |
 | status | enum: `waiting`, `called`, `done`, `no_show`, `cancelled` |
 | joined_at, called_at, completed_at | timestamps for analytics |
 | near_sms_sent_at, called_sms_sent_at | nullable; prevents duplicate SMS |
 | idempotency_key | UUID generated once by the join form; unique |
-| device_id | random ID from a long-lived browser cookie |
+| device_id | random ID from a long-lived browser cookie; null for walk-ins |
 
 Constraints and indexes:
 - **Unique** `(service_id, queue_date, number)` as a safety net against duplicate numbers.
@@ -217,6 +218,7 @@ Fortify's routes (`/login`, `/register`, password reset, email verification, two
 | GET | `/dashboard` | Today: now serving, waiting list, quick stats |
 | GET | `/dashboard/state` | JSON snapshot with names, for refetch |
 | POST | `/dashboard/counters/{counter}/call-next` | Call the next waiting ticket; body includes `expected_current_ticket_id` |
+| POST | `/dashboard/tickets/walk-in` | Add a customer without a phone or internet (service, optional name) |
 | POST | `/dashboard/tickets/bulk-remove` | Remove several fake or spam tickets at once |
 | POST | `/dashboard/tickets/{ticket}/done` | Mark done |
 | POST | `/dashboard/tickets/{ticket}/no-show` | Mark no-show |
@@ -265,6 +267,11 @@ The join page shows the current estimated wait **before** joining, so customers 
    - Queue the "called" SMS if the ticket has a phone and `called_sms_sent_at` is null.
    - Queue the "near" SMS for every waiting ticket now within position `near_threshold` that has a phone and a null `near_sms_sent_at`.
 7. If no one is waiting, return a friendly "Queue is empty" message.
+
+### Walk-ins (added 2026-10-15)
+- For a customer without a phone or internet. **Add walk-in** on the dashboard: pick the service, name optional (blank saves "Walk-in"). `AddWalkIn` numbers it under the same business lock as a QR join, so walk-ins and joins never share a number.
+- No QR token, device or phone; `idempotency_key` comes from the dialog, so a double tap adds one. Paused, past the cutoff or full doesn't stop it: staff decide in person.
+- The dialog shows the number big for staff to tell the customer (or write down); the TV shows it when called. The dashboard marks walk-ins in the waiting list and at the counter. No "customer joined" push alert (someone at the shop just added them); it broadcasts `ticket.joined` like a join.
 
 ### 3. Position and estimated wait
 - Position = count of `waiting` tickets for the same business and day with an earlier `joined_at`, plus one.

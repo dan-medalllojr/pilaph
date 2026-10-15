@@ -26,6 +26,7 @@ use Illuminate\Support\Str;
  * @property string $code
  * @property string $customer_name
  * @property string|null $phone
+ * @property bool $walk_in
  * @property TicketStatus $status
  * @property CarbonImmutable $joined_at
  * @property CarbonImmutable|null $called_at
@@ -34,7 +35,7 @@ use Illuminate\Support\Str;
  * @property CarbonImmutable|null $near_sms_sent_at
  * @property CarbonImmutable|null $called_sms_sent_at
  * @property string $idempotency_key
- * @property string $device_id
+ * @property string|null $device_id
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
@@ -47,6 +48,7 @@ use Illuminate\Support\Str;
     'code',
     'customer_name',
     'phone',
+    'walk_in',
     'status',
     'joined_at',
     'called_at',
@@ -133,6 +135,7 @@ class Ticket extends Model
             'status' => TicketStatus::class,
             'queue_date' => 'date',
             'number' => 'integer',
+            'walk_in' => 'boolean',
             'joined_at' => 'datetime',
             'called_at' => 'datetime',
             'recalled_at' => 'datetime',

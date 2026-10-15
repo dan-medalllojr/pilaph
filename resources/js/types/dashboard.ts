@@ -7,6 +7,8 @@ export type OwnerTicket = {
     customer_name: string;
     service: string;
     has_phone: boolean;
+    /** Added by staff: no phone or ticket page, so tell them out loud. */
+    walk_in: boolean;
     /** ISO 8601 */
     joined_at: string;
     called_at: string | null;
@@ -38,4 +40,6 @@ export type OwnerQueue = {
         average_wait_minutes: number | null;
     };
     setup: { active_services: number; active_counters: number };
+    /** Active services, for adding a walk-in. */
+    services: { id: number; name: string }[];
 };
