@@ -32,6 +32,7 @@ class BusinessSettingsController extends OwnerController
             ],
             'joinUrl' => url("/q/{$business->slug}"),
             'photoUrl' => $photos->url($business),
+            'photoAllowed' => $business->limits()->photo,
         ]);
     }
 

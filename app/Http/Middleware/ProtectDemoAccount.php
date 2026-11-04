@@ -31,6 +31,8 @@ class ProtectDemoAccount
         'push-subscriptions.store',
         // Anyone could put any picture on the public demo's join page.
         'business.photo.store',
+        // The demo is always Pro; nothing to buy.
+        'plan.payments.store',
     ];
 
     public function handle(Request $request, Closure $next): Response

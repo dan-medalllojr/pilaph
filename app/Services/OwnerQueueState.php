@@ -17,10 +17,12 @@ use Illuminate\Support\Facades\DB;
  */
 class OwnerQueueState
 {
+    public function __construct(private PlanUsage $usage) {}
+
     /**
      * @return array{
-     *     business: array{id: int, name: string, slug: string, is_open: bool, closed_reason: 'paused'|'after_cutoff'|'full'|null, join_cutoff_time: string|null},
-     *     counters: list<array{id: int, name: string, current: TicketRow|null}>,
+     *     business: array{id: int, name: string, slug: string, is_open: bool, closed_reason: 'paused'|'after_cutoff'|'monthly_limit'|'full'|null, join_cutoff_time: string|null},
+     *     counters: list<array{id: int, name: string, locked: bool, current: TicketRow|null}>,
      *     waiting: list<TicketRow>,
      *     stats: array{waiting: int, served: int, no_shows: int, average_wait_minutes: int|null},
      *     setup: array{active_services: int, active_counters: int},
@@ -46,16 +48,20 @@ class OwnerQueueState
             ->get()
             ->keyBy('counter_id');
 
+        $locked = $this->usage->lockedCounterIds($business);
+
         $counters = $business->counters()
             ->where('is_active', true)
             ->orderBy('name')
             ->get()
-            ->map(function (Counter $counter) use ($calledByCounter) {
+            ->map(function (Counter $counter) use ($calledByCounter, $locked) {
                 $current = $calledByCounter->get($counter->id);
 
                 return [
                     'id' => $counter->id,
                     'name' => $counter->name,
+                    // Past the plan's counter limit: can finish its customer, not call the next.
+                    'locked' => in_array($counter->id, $locked, true),
                     'current' => $current instanceof Ticket ? $this->row($current) : null,
                 ];
             });
@@ -85,7 +91,7 @@ class OwnerQueueState
                 'name' => $business->name,
                 'slug' => $business->slug,
                 'is_open' => $business->is_open,
-                'closed_reason' => $business->joinClosedReason($waiting->count()),
+                'closed_reason' => $business->joinClosedReason($waiting->count(), $this->usage->joinsClosedForMonth($business)),
                 'join_cutoff_time' => $business->join_cutoff_time !== null
                     ? substr($business->join_cutoff_time, 0, 5)
                     : null,

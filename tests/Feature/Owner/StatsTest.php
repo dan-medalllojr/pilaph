@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Plan;
 use App\Enums\TicketStatus;
 use App\Models\Counter;
 use App\Models\Service;
@@ -79,7 +80,43 @@ test('today and the last 30 days are offered; other periods are not', function (
     expect(statsFor($this, 1)['served'])->toBe(1)
         ->and(statsFor($this, 30)['served'])->toBe(2);
 
-    $this->actingAs($this->owner)->get(route('stats.show', ['days' => 365]))->assertSessionHasErrors('days');
+    $this->actingAs($this->owner)->get(route('stats.show', ['days' => 45]))->assertSessionHasErrors('days');
+});
+
+test('each plan offers the periods within its history; longer ones lead to Plan & billing', function () {
+    $offered = fn () => collect($this->actingAs($this->owner)->get(route('stats.show'))->inertiaProps('periods'))
+        ->where('allowed', true)->pluck('days')->all();
+
+    expect($offered())->toBe([1, 7, 30, 90, 180, 365]);
+
+    $this->business->forceFill(['plan' => Plan::Basic])->save();
+    expect($offered())->toBe([1, 7, 30, 90, 180]);
+
+    $this->business->forceFill(['plan' => Plan::Free, 'trial_ends_at' => null])->save();
+    expect($offered())->toBe([1, 7, 30]);
+
+    $this->actingAs($this->owner)->get(route('stats.show', ['days' => 90]))
+        ->assertRedirect(route('plan.show'));
+});
+
+test('longer periods are charted by week or by month', function () {
+    servedTicket($this->haircut, $this->chair1, '2026-10-07 09:00');
+    servedTicket($this->haircut, $this->chair1, '2026-10-05 09:00'); // Monday of the same week
+    servedTicket($this->haircut, $this->chair1, '2026-08-14 09:00');
+
+    $weeks = statsFor($this, 90)['served_over_time'];
+    expect($weeks['bucket'])->toBe('week')
+        // From the Monday of the week 89 days ago, every week up to this one.
+        ->and($weeks['points'][0]['date'])->toBe('2026-07-06')
+        ->and(collect($weeks['points'])->last())->toBe(['date' => '2026-10-05', 'served' => 2])
+        ->and(collect($weeks['points'])->firstWhere('date', '2026-08-10'))->toBe(['date' => '2026-08-10', 'served' => 1]);
+
+    $months = statsFor($this, 365)['served_over_time'];
+    expect($months['bucket'])->toBe('month')
+        ->and($months['points'])->toHaveCount(13)
+        ->and($months['points'][0])->toBe(['date' => '2025-10-01', 'served' => 0])
+        ->and(collect($months['points'])->firstWhere('date', '2026-08-01')['served'])->toBe(1)
+        ->and(collect($months['points'])->last())->toBe(['date' => '2026-10-01', 'served' => 2]);
 });
 
 test('busiest hours are in the shop\'s own time, with quiet hours in between', function () {
@@ -103,9 +140,11 @@ test('every day of the period is listed, even without customers', function () {
     servedTicket($this->haircut, $this->chair1, '2026-10-07 10:00');
     servedTicket($this->haircut, $this->chair1, '2026-10-03 10:00');
 
-    $days = statsFor($this)['served_per_day'];
+    $served = statsFor($this)['served_over_time'];
+    $days = $served['points'];
 
-    expect($days)->toHaveCount(7)
+    expect($served['bucket'])->toBe('day')
+        ->and($days)->toHaveCount(7)
         ->and($days[0])->toBe(['date' => '2026-10-01', 'served' => 0])
         ->and($days[2])->toBe(['date' => '2026-10-03', 'served' => 1])
         ->and($days[6])->toBe(['date' => '2026-10-07', 'served' => 2]);

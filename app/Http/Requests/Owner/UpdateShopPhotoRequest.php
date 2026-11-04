@@ -4,6 +4,7 @@ namespace App\Http\Requests\Owner;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class UpdateShopPhotoRequest extends FormRequest
 {
@@ -24,6 +25,20 @@ class UpdateShopPhotoRequest extends FormRequest
     {
         return [
             'photo' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:4096', 'dimensions:min_width=320,min_height=200,max_width=4000,max_height=4000'],
+        ];
+    }
+
+    /**
+     * @return list<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($this->user()?->business?->limits()->photo === false) {
+                    $validator->errors()->add('photo', 'Shop photos come with the Basic and Pro plans. See Plan & billing.');
+                }
+            },
         ];
     }
 

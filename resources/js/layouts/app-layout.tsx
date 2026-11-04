@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import DemoBanner from '@/components/demo-banner';
+import PlanBanner from '@/components/plan-banner';
 import SupportDeveloper from '@/components/support-developer';
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
 import { registerServiceWorker } from '@/lib/push';
@@ -21,6 +22,7 @@ export default function AppLayout({
     return (
         <AppLayoutTemplate breadcrumbs={breadcrumbs}>
             <DemoBanner />
+            <PlanBanner />
             {children}
             <SupportDeveloper />
         </AppLayoutTemplate>

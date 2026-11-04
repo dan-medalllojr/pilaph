@@ -1,20 +1,35 @@
 import { Head, Link } from '@inertiajs/react';
+import { Lock } from 'lucide-react';
 import Heading from '@/components/heading';
 import { cn } from '@/lib/utils';
+import { show as planShow } from '@/routes/plan';
 import { show } from '@/routes/stats';
-import type { ShopStats } from '@/types';
+import type { ShopStats, StatsPeriod } from '@/types';
 
-const periods = [
-    { days: 1, label: 'Today' },
-    { days: 7, label: 'Last 7 days' },
-    { days: 30, label: 'Last 30 days' },
-];
+const periodLabels: Record<number, string> = {
+    1: 'Today',
+    7: '7 days',
+    30: '30 days',
+    90: '3 months',
+    180: '6 months',
+    365: '12 months',
+};
 
 const shortDate = new Intl.DateTimeFormat('en-PH', {
     month: 'short',
     day: 'numeric',
 });
+const dateWithYear = new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+});
 const weekday = new Intl.DateTimeFormat('en-PH', { weekday: 'short' });
+const monthName = new Intl.DateTimeFormat('en-PH', { month: 'short' });
+const monthYear = new Intl.DateTimeFormat('en-PH', {
+    month: 'long',
+    year: 'numeric',
+});
 
 /** "2026-10-07" as a local date (not UTC midnight). */
 const toDate = (date: string) => new Date(`${date}T00:00:00`);
@@ -23,11 +38,20 @@ const toDate = (date: string) => new Date(`${date}T00:00:00`);
 const hourLabel = (hour: number) =>
     `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`;
 
-export default function Stats({ stats }: { stats: ShopStats }) {
+export default function Stats({
+    stats,
+    periods,
+}: {
+    stats: ShopStats;
+    /** Longer periods than the plan keeps are shown locked. */
+    periods: StatsPeriod[];
+}) {
+    // Over a month, with the year: "Oct 8, 2025 – Oct 7, 2026".
+    const format = stats.days > 31 ? dateWithYear : shortDate;
     const range =
         stats.days === 1
             ? `Today, ${shortDate.format(toDate(stats.to))}`
-            : `${shortDate.format(toDate(stats.from))} – ${shortDate.format(toDate(stats.to))}`;
+            : `${format.format(toDate(stats.from))} – ${format.format(toDate(stats.to))}`;
 
     return (
         <>
@@ -38,15 +62,25 @@ export default function Stats({ stats }: { stats: ShopStats }) {
                     <Heading title="Stats" description={range} />
                     <nav
                         aria-label="Period"
-                        className="inline-flex rounded-lg border p-1 text-sm"
+                        className="flex flex-wrap rounded-lg border p-1 text-sm"
                     >
                         {periods.map((period) => (
                             <Link
                                 key={period.days}
-                                href={show({ query: { days: period.days } })}
-                                preserveScroll
+                                // Locked periods lead to Plan & billing.
+                                href={
+                                    period.allowed
+                                        ? show({ query: { days: period.days } })
+                                        : planShow()
+                                }
+                                preserveScroll={period.allowed}
+                                title={
+                                    period.allowed
+                                        ? undefined
+                                        : 'Comes with a paid plan'
+                                }
                                 className={cn(
-                                    'rounded-md px-3 py-1.5',
+                                    'inline-flex items-center gap-1 rounded-md px-3 py-1.5',
                                     period.days === stats.days
                                         ? 'bg-muted font-medium'
                                         : 'text-muted-foreground hover:text-foreground',
@@ -57,7 +91,11 @@ export default function Stats({ stats }: { stats: ShopStats }) {
                                         : undefined
                                 }
                             >
-                                {period.label}
+                                {!period.allowed && (
+                                    <Lock className="size-3" aria-hidden />
+                                )}
+                                {periodLabels[period.days] ??
+                                    `${period.days} days`}
                             </Link>
                         ))}
                     </nav>
@@ -73,7 +111,7 @@ export default function Stats({ stats }: { stats: ShopStats }) {
 
                         <section className="grid gap-6 lg:grid-cols-2">
                             <BusiestHours hours={stats.busiest_hours} />
-                            {stats.days > 1 && <ServedPerDay stats={stats} />}
+                            {stats.days > 1 && <ServedOverTime stats={stats} />}
                         </section>
 
                         <section className="grid gap-6 lg:grid-cols-2">
@@ -186,30 +224,49 @@ function BusiestHours({ hours }: { hours: ShopStats['busiest_hours'] }) {
     );
 }
 
-function ServedPerDay({ stats }: { stats: ShopStats }) {
-    const total = stats.served_per_day.length;
+function ServedOverTime({ stats }: { stats: ShopStats }) {
+    const { bucket, points } = stats.served_over_time;
+    const total = points.length;
+    const unit = { day: 'day', week: 'week', month: 'month' }[bucket];
+    const average =
+        bucket === 'day'
+            ? Math.round((stats.served / total) * 10) / 10
+            : Math.round(stats.served / total);
 
     return (
         <Panel
-            title="Served per day"
-            description={`${Math.round((stats.served / total) * 10) / 10} a day on average.`}
+            title={`Served per ${unit}`}
+            description={`${average} a ${unit} on average.`}
         >
             <Bars
-                items={stats.served_per_day.map((day, index) => {
-                    const date = toDate(day.date);
-                    // 7 days: every weekday; 30 days: a date every 5 days.
+                items={points.map((point, index) => {
+                    const date = toDate(point.date);
+                    // 7 days: every weekday; 30 days: a date every 5 days;
+                    // weeks: every 4th week's date; months: every month.
                     const label =
-                        total <= 7
-                            ? weekday.format(date)
-                            : index % 5 === 0 || index === total - 1
-                              ? String(date.getDate())
-                              : '';
+                        bucket === 'month'
+                            ? monthName.format(date)
+                            : bucket === 'week'
+                              ? index % 4 === 0
+                                  ? shortDate.format(date)
+                                  : ''
+                              : total <= 7
+                                ? weekday.format(date)
+                                : index % 5 === 0 || index === total - 1
+                                  ? String(date.getDate())
+                                  : '';
+                    const when =
+                        bucket === 'month'
+                            ? monthYear.format(date)
+                            : bucket === 'week'
+                              ? `Week of ${shortDate.format(date)}`
+                              : shortDate.format(date);
 
                     return {
-                        key: day.date,
+                        key: point.date,
                         label,
-                        value: day.served,
-                        title: `${shortDate.format(date)}: ${day.served} served`,
+                        value: point.served,
+                        title: `${when}: ${point.served} served`,
                     };
                 })}
             />

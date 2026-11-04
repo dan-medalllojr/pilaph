@@ -22,6 +22,10 @@ const closedMessages: Record<JoinClosedReason, [string, string]> = {
         "We're not taking new customers today",
         'Thank you, and see you next time!',
     ],
+    monthly_limit: [
+        'Online joining is closed for now',
+        'Please ask the staff.',
+    ],
     full: [
         'The queue is full right now',
         'Please check back in a little while.',
@@ -36,6 +40,8 @@ const timeFormat = new Intl.DateTimeFormat('en-PH', {
 type Props = {
     display: DisplayState;
     stateUrl: string;
+    /** False on paid plans: no PilaPH name in the corner. */
+    branding: boolean;
     /** The public demo's sample shop, which anyone can edit. */
     isDemo: boolean;
 };
@@ -45,7 +51,12 @@ type Props = {
  * code to join. Refetches on every queue event: a public channel can be
  * written by anyone, so nothing from a message is shown without the server.
  */
-export default function Display({ display: initial, stateUrl, isDemo }: Props) {
+export default function Display({
+    display: initial,
+    stateUrl,
+    branding,
+    isDemo,
+}: Props) {
     const [gone, setGone] = useState(false);
     const [highlight, setHighlight] = useState<{
         counters: string[];
@@ -248,7 +259,7 @@ export default function Display({ display: initial, stateUrl, isDemo }: Props) {
                     />
                     {live ? 'Live' : 'Reconnecting… checking every 20 s'}
                 </span>
-                <span>PilaPH</span>
+                {branding && <span>PilaPH</span>}
             </footer>
         </Screen>
     );

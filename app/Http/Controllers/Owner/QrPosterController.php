@@ -21,6 +21,7 @@ class QrPosterController extends OwnerController
                 'rotate_qr_daily' => $business->rotate_qr_daily,
             ],
             'join' => $qrCode->forBusiness($business),
+            'branding' => $business->limits()->branding,
         ]);
     }
 }

@@ -86,6 +86,11 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 | `SEMAPHORE_API_KEY`                                                             | semaphore.co → Account → API                                                                                                                                                                                                 |
 | `SEMAPHORE_SENDER_NAME`                                                         | Empty until Semaphore approves your sender name (an unapproved name makes every text fail)                                                                                                                                   |
 | `DEMO_ENABLED`                                                                  | `true` for the public "Try the demo" button                                                                                                                                                                                  |
+| `HITPAY_API_KEY`, `HITPAY_SALT`                                                 | Paying for plans by QR Ph: HitPay → Developers (the API key, and the webhook's salt). See "Plans and payments" below                                                                                                         |
+| `HITPAY_SANDBOX`                                                                | `true` while testing with HitPay's sandbox; `false` with the live account                                                                                                                                                    |
+| `HITPAY_PAYMENT_METHODS`                                                        | Empty in production (QR Ph). `card` with the sandbox, which has no QR Ph                                                                                                                                                     |
+| `PAYMENT_GCASH_NUMBER`, `PAYMENT_MAYA_NUMBER`, `PAYMENT_ACCOUNT_NAME`           | Where owners pay for a plan, shown on Plan & billing. Leave empty what you don't use                                                                                                                                         |
+| `PAYMENT_CONTACT`                                                               | Where owners send the receipt screenshot: an email address or a link (e.g. your Facebook page). All payment variables empty: "Paid plans open soon"                                                                          |
 | `SUPPORT_QR_URL`                                                                | Optional: "Support the developer" QR at the bottom of owner pages, e.g. `/images/support-qr.png` (a file in `public/images/`) or an `https://` image address. Empty: hidden                                                  |
 
 ## 5. After the first deploy
@@ -95,6 +100,37 @@ Keep it at **one replica**. Every replica runs its own scheduler; the timed jobs
 - With the demo on, run the demo reset once from Railway's shell or wait for the hour: `php artisan demo:reset`. "Try the demo" also builds it on first use.
 - Turn on push alerts on your phone (Settings → Alerts; on iPhone, from the Home Screen app on iOS 16.4 or later).
 - Print the QR poster, or open the TV link on the shop's TV.
+
+## Plans and payments
+
+Prices and limits are in `config/plans.php`.
+
+### Paying by QR Ph (HitPay)
+
+Owners pay on Plan & billing: they pick a plan and 1, 3, 6 or 12 months, scan a QR Ph code on HitPay's page with GCash, Maya or their bank app, and the plan switches on by itself. HitPay charges 1% or ₱20 per payment (whichever is higher) and pays out the next day.
+
+1. **Try it in the sandbox first** (test money only). HitPay's sandbox has **no QR Ph**, and its accounts must be **Singapore** businesses, so make a separate sandbox account at https://dashboard.sandbox.hit-pay.com with Singapore as the country (your live account stays Philippine). In it: **Settings → Payment Methods**, turn on cards; **Developers → API Keys**, copy the API key; **Developers → Webhooks**, add the endpoint `https://your-domain/webhooks/hitpay` with the event `payment_request.completed` (and `payment_request.failed`), and copy its **salt**.
+2. Set `HITPAY_API_KEY`, `HITPAY_SALT`, `HITPAY_SANDBOX=true` and `HITPAY_PAYMENT_METHODS=card`, and pay for a plan from a test shop with HitPay's test card.
+3. **Go live** once HitPay has verified your (Philippine) business: do step 1 again in the live dashboard (turn on QR Ph there), then set the live `HITPAY_API_KEY` and `HITPAY_SALT`, `HITPAY_SANDBOX=false`, and remove `HITPAY_PAYMENT_METHODS` (QR Ph is the default). Make one real ₱299 payment for your own shop to check QR Ph itself; refund it from HitPay's dashboard if you like.
+
+On your computer HitPay can't reach the webhook, but paying still works: when HitPay sends you back, the app asks HitPay whether it was paid.
+
+Refunds are done in HitPay's dashboard; then correct the shop's plan with `plan:set` (below).
+
+### Without HitPay, or for special cases
+
+Without `HITPAY_API_KEY`, Plan & billing shows manual steps instead: owners send GCash or Maya (the `PAYMENT_*` variables) with their shop's link name in the message, then send you the receipt. Check the payment, then in Railway's shell (or from your computer with the production settings):
+
+```bash
+php artisan plan:list                                       # every shop: plan, end date, customers and texts this month
+php artisan plan:set juans-barbershop basic --months=1      # by link name or the owner's email
+php artisan plan:set juans-barbershop pro --forever         # a shop you don't charge
+php artisan plan:set juans-barbershop free                  # end a plan or trial now
+```
+
+Owners can pay up to 13 months ahead (`max_months_ahead` in `config/plans.php`). `plan:set` is also how you give a shop a free plan, go past that limit, or fix a plan after a refund. Paying again for the same plan before it ends adds the months after the current end date, and upgrading from Basic to Pro turns the unused Basic days into Pro days of the same value. When a plan ends, the shop moves to Free by itself; its older history is kept 30 more days in case they renew.
+
+Every night at 3:15 AM, `data:prune` erases customer names and phone numbers a week after their visit and deletes history older than each plan keeps, so the database stays small.
 
 ## Updating
 

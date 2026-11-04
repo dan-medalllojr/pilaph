@@ -1,6 +1,7 @@
 import { Form, Head, Link } from '@inertiajs/react';
 import {
     ChevronRight,
+    Lock,
     Megaphone,
     Smartphone,
     UserPlus,
@@ -31,6 +32,7 @@ import { uuid } from '@/lib/queue';
 import { dashboard } from '@/routes';
 import { state as dashboardState } from '@/routes/dashboard';
 import { index as counterIndex } from '@/routes/counters';
+import { show as planShow } from '@/routes/plan';
 import { index as serviceIndex } from '@/routes/services';
 import type { OwnerQueue, OwnerTicket } from '@/types';
 
@@ -83,11 +85,13 @@ function QueueHeader({ queue, live }: { queue: OwnerQueue; live: boolean }) {
         ? 'Paused: new customers can’t join'
         : business.closed_reason === 'after_cutoff'
           ? `Closed for today (cutoff ${business.join_cutoff_time})`
-          : business.closed_reason === 'full'
-            ? 'Full: new customers can’t join right now'
-            : business.join_cutoff_time
-              ? `Open: customers can join until ${business.join_cutoff_time}`
-              : 'Open: customers can join';
+          : business.closed_reason === 'monthly_limit'
+            ? 'Closed: this month’s customer limit is reached (see Plan & billing)'
+            : business.closed_reason === 'full'
+              ? 'Full: new customers can’t join right now'
+              : business.join_cutoff_time
+                ? `Open: customers can join until ${business.join_cutoff_time}`
+                : 'Open: customers can join';
 
     return (
         <header className="flex flex-wrap items-center justify-between gap-3">
@@ -385,7 +389,11 @@ function CounterCard({
         <article className="flex flex-col gap-4 rounded-xl border p-4">
             <div className="flex items-center justify-between gap-2">
                 <h2 className="font-medium">{counter.name}</h2>
-                {current ? (
+                {counter.locked ? (
+                    <Badge variant="secondary">
+                        <Lock /> Locked
+                    </Badge>
+                ) : current ? (
                     <Badge>Serving</Badge>
                 ) : (
                     <Badge variant="outline">Free</Badge>
@@ -410,35 +418,48 @@ function CounterCard({
                 </p>
             )}
 
-            <Form {...QueueController.callNext.form(counter.id)}>
-                {({ processing }) => (
-                    <>
-                        <input
-                            type="hidden"
-                            name="expected_current_ticket_id"
-                            value={current?.id ?? ''}
-                        />
-                        <Button
-                            type="submit"
-                            className="h-12 w-full text-base"
-                            disabled={
-                                processing || (waitingCount === 0 && !current)
-                            }
-                        >
-                            {processing && <Spinner />}
-                            {/* Call next also marks the current customer
-                                done; say so, so a no-show gets No-show. */}
-                            {waitingCount === 0
-                                ? current
-                                    ? 'Done, nobody waiting'
-                                    : 'Nobody waiting'
-                                : current
-                                  ? `Done ${current.code} · Call next`
-                                  : 'Call next'}
-                        </Button>
-                    </>
-                )}
-            </Form>
+            {counter.locked ? (
+                <div className="grid gap-2">
+                    <p className="text-sm text-muted-foreground">
+                        Your plan doesn&apos;t include this counter, so it
+                        can&apos;t call customers.
+                    </p>
+                    <Button asChild variant="outline" className="h-12 w-full">
+                        <Link href={planShow()}>See plans</Link>
+                    </Button>
+                </div>
+            ) : (
+                <Form {...QueueController.callNext.form(counter.id)}>
+                    {({ processing }) => (
+                        <>
+                            <input
+                                type="hidden"
+                                name="expected_current_ticket_id"
+                                value={current?.id ?? ''}
+                            />
+                            <Button
+                                type="submit"
+                                className="h-12 w-full text-base"
+                                disabled={
+                                    processing ||
+                                    (waitingCount === 0 && !current)
+                                }
+                            >
+                                {processing && <Spinner />}
+                                {/* Call next also marks the current customer
+                                    done; say so, so a no-show gets No-show. */}
+                                {waitingCount === 0
+                                    ? current
+                                        ? 'Done, nobody waiting'
+                                        : 'Nobody waiting'
+                                    : current
+                                      ? `Done ${current.code} · Call next`
+                                      : 'Call next'}
+                            </Button>
+                        </>
+                    )}
+                </Form>
+            )}
 
             {current && (
                 <div className="grid grid-cols-3 gap-2">

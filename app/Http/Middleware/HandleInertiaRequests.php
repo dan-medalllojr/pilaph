@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\PlanUsage;
 use App\Support\Messaging;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -44,6 +45,12 @@ class HandleInertiaRequests extends Middleware
             ],
             // The signed-in owner's shop, for the sidebar. Never includes the QR token.
             'business' => fn () => $request->user()?->business?->only(['id', 'name', 'slug']),
+            // A banner on owner pages when the plan needs attention (trial ending, a limit reached).
+            'planNotice' => function () use ($request) {
+                $business = $request->user()?->business;
+
+                return $business !== null ? app(PlanUsage::class)->notice($business) : null;
+            },
             'demo' => fn () => [
                 'enabled' => (bool) config('demo.enabled'),
                 // Signed in as the shared demo owner (shows the demo banner).

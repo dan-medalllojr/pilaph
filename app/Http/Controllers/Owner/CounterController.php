@@ -29,8 +29,13 @@ class CounterController extends OwnerController
                 'has_tickets' => (bool) $counter->getAttribute('has_tickets'),
             ]);
 
+        $business = $this->business($request);
+
         return Inertia::render('counters/index', [
             'counters' => $counters,
+            // Counters switched on at once (null: no limit).
+            'limit' => $business->limits()->counters,
+            'plan' => $business->currentPlan()->label(),
         ]);
     }
 

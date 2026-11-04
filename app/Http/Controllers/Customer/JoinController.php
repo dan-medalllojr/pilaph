@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Customer\JoinQueueRequest;
 use App\Models\Business;
 use App\Models\Ticket;
+use App\Services\PlanUsage;
 use App\Services\PublicQueueState;
 use App\Services\ShopPhotos;
 use App\Support\Messaging;
@@ -28,7 +29,7 @@ class JoinController extends Controller
 
     private const DEVICE_COOKIE_MINUTES = 60 * 24 * 365 * 2;
 
-    public function show(Request $request, Business $business, PublicQueueState $queueState, ShopPhotos $photos): Response
+    public function show(Request $request, Business $business, PublicQueueState $queueState, ShopPhotos $photos, PlanUsage $usage): Response
     {
         $deviceId = $this->deviceId($request);
         $token = $request->string('k')->value();
@@ -45,9 +46,12 @@ class JoinController extends Controller
             // Echoed back only when valid, so the form can submit it.
             'qrToken' => $token !== '' && hash_equals($business->qr_token, $token) ? $token : null,
             'existingTicket' => $existing?->only(['id', 'code']),
-            'photoUrl' => $photos->url($business),
-            // No phone field while texts can't be sent (Messaging::canText()).
-            'textsEnabled' => Messaging::canText(),
+            // Kept when a paid plan ends, but shown again only after renewing.
+            'photoUrl' => $business->limits()->photo ? $photos->url($business) : null,
+            // A phone field only when texts can be sent (Messaging::canText())
+            // and the shop's plan has texts left this month.
+            'textsEnabled' => Messaging::canText() && $usage->textsLeft($business) > 0,
+            'branding' => $business->limits()->branding,
             // Anyone trying the demo can edit its shop: say it isn't a real one.
             'isDemo' => $business->is_demo,
         ]);

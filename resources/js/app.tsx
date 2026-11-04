@@ -15,7 +15,7 @@ void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
-            case name === 'welcome':
+            case name === 'welcome' || name === 'pricing':
                 return null;
             // The one-time shop setup uses the simple centered card layout.
             case name.startsWith('auth/') || name === 'business/setup':

@@ -17,3 +17,11 @@ Schedule::command('demo:reset')->hourly()->withoutOverlapping();
 
 // Alert owners 30 minutes before their join cutoff (once a day each).
 Schedule::command('queue:cutoff-reminders')->everyMinute()->withoutOverlapping();
+
+// Erase week-old customer names and phone numbers, and delete history older
+// than each shop's plan keeps (config/plans.php). Quiet hours.
+Schedule::command('data:prune')->dailyAt('03:15')->withoutOverlapping();
+
+// Housekeeping: failed jobs after a week, expired password reset links.
+Schedule::command('queue:prune-failed --hours=168')->dailyAt('03:30');
+Schedule::command('auth:clear-resets')->dailyAt('03:30');

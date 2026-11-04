@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Cache;
  * business, so a burst of phones refreshing at once costs one set of queries.
  *
  * @phpstan-type Snapshot array{
- *     business: array{id: int, name: string, slug: string, closed_reason: 'paused'|'after_cutoff'|'full'|null, join_cutoff_time: string|null},
+ *     business: array{id: int, name: string, slug: string, closed_reason: 'paused'|'after_cutoff'|'monthly_limit'|'full'|null, join_cutoff_time: string|null},
  *     waiting_count: int,
  *     waiting_codes: list<string>,
  *     now_serving: list<array{counter: string, code: string}>,
@@ -31,7 +31,10 @@ class PublicQueueState
 {
     private const CACHE_SECONDS = 3;
 
-    public function __construct(private QueueEstimator $estimator) {}
+    public function __construct(
+        private QueueEstimator $estimator,
+        private PlanUsage $usage,
+    ) {}
 
     /**
      * @return Snapshot
@@ -162,7 +165,7 @@ class PublicQueueState
                 'id' => $business->id,
                 'name' => $business->name,
                 'slug' => $business->slug,
-                'closed_reason' => $business->joinClosedReason(count($waitingCodes)),
+                'closed_reason' => $business->joinClosedReason(count($waitingCodes), $this->usage->joinsClosedForMonth($business)),
                 'join_cutoff_time' => $business->join_cutoff_time !== null
                     ? substr($business->join_cutoff_time, 0, 5)
                     : null,
